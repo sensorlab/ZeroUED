@@ -69,7 +69,7 @@ class SIM_CLR_Trainer(Trainer):
             hard_negatives_mining (bool): remove 1/4 negatives with the lowest similarity, defalut False.
             
         """
-        self.sehard_postitves_mining = hard_postitves_mining
+        self.hard_postitves_mining = hard_postitves_mining
         self.hard_negatives_mining = hard_negatives_mining
         
     def similarity(self, a, b, type = 'cosine'):
@@ -148,7 +148,7 @@ class SIM_CLR_Trainer(Trainer):
         
         labels = torch.arange(p_sims.shape[0], device = p_sims.device, dtype = torch.long)
         
-        if self.sehard_postitves_mining:
+        if self.hard_postitves_mining:
             # Sort and select top 75% disimilar positives
             _, indices = torch.sort(torch.diag(p_q_sim),  descending=True)
             indices = indices[len(indices) // 4:]
