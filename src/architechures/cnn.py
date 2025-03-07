@@ -15,7 +15,8 @@ class Simple_CNN_1D(nn.Module):
         kernel_size:int=7,
         padding_size:int=3,
         features_size:int=100,
-        maxplool_strides:int = 4
+        maxplool_strides:int = 4,
+        n_classes = 10
     ):
         
         super(Simple_CNN_1D, self).__init__()
@@ -35,6 +36,10 @@ class Simple_CNN_1D(nn.Module):
             padding_size=padding_size,
             features_size=features_size,
             maxplool_strides = maxplool_strides
+        )
+
+        self.classif_head = nn.Sequential(
+            nn.Linear(features_size, features_size), nn.ReLU(), nn.Linear(features_size, n_classes)
         )
         
     def _compute_conv1d_output_length(
@@ -102,8 +107,8 @@ class Simple_CNN_1D(nn.Module):
                         out_channels= layers_output_sizes[i], 
                         kernel_size=kernel_size, 
                         padding=padding_size),
-                    nn.BatchNorm1d( layers_output_sizes[i]),
                     nn.ReLU(),
+                    nn.BatchNorm1d( layers_output_sizes[i]),
                     nn.MaxPool1d(kernel_size=maxplool_strides, stride = maxplool_strides)
                 )
             )
@@ -132,7 +137,7 @@ class Simple_CNN_1D(nn.Module):
         
     def forward(self, x):
         features = self.feature_layers(x)
-        return features, -1
+        return features, self.classif_head(features)
 
 
 
@@ -166,7 +171,7 @@ class AE_CNN_1D(nn.Module):
 
         # build feature map layers and memorize maxpoolings positions
         (self.feature_layers, self.maxpooling_layers_positions, 
-        self.internal_signal_length) = self._build_feature_layers(
+        self.internal_signal_length, self.output_size) = self._build_feature_layers(
             layers_output_sizes=layers_output_sizes, 
             input_signal_length=input_signal_length, 
             in_channels=in_channels,
@@ -176,7 +181,7 @@ class AE_CNN_1D(nn.Module):
             padding_size=padding_size,
             features_size=features_size
         )
-
+        self.mlp = nn.Sequential(nn.Flatten(), nn.ReLU(), nn.Linear(self.output_size, self.features_size))
         # build reconstruction layers: inverse order of feature map layers
         # memorize maxunpoolings positions
         self.reconstruction_layers, self.maxunpooling_layers_positions = \
@@ -268,27 +273,24 @@ class AE_CNN_1D(nn.Module):
                         padding=padding_size),
                     nn.BatchNorm1d(layers_output_sizes[i]),
                     nn.ReLU(),
-                    nn.MaxPool1d(kernel_size=kernel_size_maxpool,
+                    nn.MaxPool1d(kernel_size=kernel_size_maxpool,stride=kernel_size_maxpool,
                                  return_indices=True)
                     ]
             )
 
             # update the singal length
             cur_signal_length = self._compute_conv1d_output_length(
-                input_length=cur_signal_length
+                input_length=cur_signal_length,kernel_size=kernel_size_conv, padding_size = padding_size
             )
             cur_signal_length = self._compute_maxpool1d_output_length(
-                input_length=cur_signal_length
+                input_length=cur_signal_length,kernel_size=kernel_size_maxpool,stride=kernel_size_maxpool
             )
             
         # total size of the output tensor(num_chanhnels, signal_length)
         output_size = cur_signal_length * layers_output_sizes[-1] # default 512
 
-        # linear layer for feature map reduction
-        layers.extend(
-            [nn.Flatten(), nn.Linear(output_size, features_size), nn.ReLU()]
-        )
-        return (nn.ModuleList(layers), maxpooling_layers_positions, cur_signal_length)
+        
+        return (nn.ModuleList(layers), maxpooling_layers_positions, cur_signal_length, output_size)
     
     def _build_reconstruction_layers(
         self,
@@ -311,17 +313,9 @@ class AE_CNN_1D(nn.Module):
         maxunpooling_layers_positions = set()
 
         # inverse order: linear layer first
-        layers.append(
-            nn.Linear(
-                n_classes,
-                layers_output_sizes[0] * output_signal_length #512 default
-            )
-        )
-
         
-        layers.append(nn.Unflatten(1, (layers_output_sizes[0], output_signal_length)))
         
-        counter = 2
+        counter = 0
         
         for i in range(num_layers):
             
@@ -348,8 +342,6 @@ class AE_CNN_1D(nn.Module):
                     nn.ReLU()
                     ]
             )
-            
-        layers.append(nn.Sigmoid())
         
         return nn.ModuleList(layers), maxunpooling_layers_positions
         
@@ -361,24 +353,25 @@ class AE_CNN_1D(nn.Module):
         
         """
         maxpooling_indices = []
-        
+        sizes = []
         for i, layer in enumerate(self.feature_layers):
+            sizes.append(x.shape)
             if i in self.maxpooling_layers_positions:
                 x, indices = layer(x)
                 maxpooling_indices.append(indices)
             else:
                 x = layer(x)
                 
-        features = x
-        
+        features = self.mlp(x)
+        sizes = sizes[::-1]
         counter = 0
         maxpooling_indices = maxpooling_indices[::-1]
         
         for i, layer in enumerate(self.reconstruction_layers):
             if i in self.maxunpooling_layers_positions:
-                x = layer(x, maxpooling_indices[counter])
+                x = layer(x, maxpooling_indices[counter], output_size = sizes[i])
                 counter += 1
             else:
                 x = layer(x)
                 
-        return x, features
+        return features, x

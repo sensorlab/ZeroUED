@@ -7,13 +7,13 @@ class DronesDataset(Dataset):
     
     name = 'DronesDataset'
     
-    def __init__(self, dataset_path, uavs=None, bursts=None, transform=None, limit=None, labels=None, complex_input = False):
+    def __init__(self, dataset_path, uavs=None, bursts=None, transform=None, limit=None, complex_input = False, return_indices=False):
         self.dataset_path = dataset_path
         self.transform = transform
         self.limit = limit
-        self.labels = labels
         self.sigma = 7239
         self.mu = 1.5
+        self.return_indices = return_indices
 
         with h5py.File(self.dataset_path, mode="r", swmr=True) as fp:
             self.drone_ids = fp['labels'][:,0]
@@ -24,7 +24,7 @@ class DronesDataset(Dataset):
 
             if complex_input:
                 self.data_i = np.real(fp['data'][mask])
-                self.data_q = np.im(fp['data'][mask])
+                self.data_q = np.imag(fp['data'][mask])
             else:
                 self.data_i = fp['data_i'][mask]
                 self.data_q = fp['data_q'][mask]
@@ -47,6 +47,7 @@ class DronesDataset(Dataset):
         with h5py.File(self.dataset_path, mode="r", swmr=True) as fp:
             sample_i = self.data_i[idx]
             sample_q = self.data_q[idx]
+            
             label = self.drone_ids[idx]
             
             sample = np.concatenate([sample_i, sample_q])
@@ -54,18 +55,22 @@ class DronesDataset(Dataset):
             
         if self.transform:
             sample = self.transform(sample)
-            
-        return sample, label
+
+        if self.return_indices:
+            return sample, label, idx
+        else:
+            return sample, label
 
 class WiFiDataset(Dataset):
     
     name = 'WiFiDataset'
     
-    def __init__(self, dataset_path, uavs, transform=None, limit=None, labels=None, complex_input = False):
+    def __init__(self, dataset_path, uavs, transform=None, limit=None, complex_input = False, return_indices=False):
         self.dataset_path = dataset_path
         self.transform = transform
         self.limit = limit
-        self.labels = labels
+        self.return_indices = return_indices
+        
         with h5py.File(self.dataset_path, mode="r", swmr=True) as fp:
             self.drone_ids = fp['labels'][:,0]
             
@@ -73,7 +78,7 @@ class WiFiDataset(Dataset):
 
             if complex_input:
                 self.data_i = np.real(fp['data'][mask])
-                self.data_q = np.im(fp['data'][mask])
+                self.data_q = np.imag(fp['data'][mask])
             else:
                 self.data_i = fp['data_i'][mask]
                 self.data_q = fp['data_q'][mask]
@@ -93,6 +98,7 @@ class WiFiDataset(Dataset):
         with h5py.File(self.dataset_path, mode="r", swmr=True) as fp:
             sample_i = self.data_i[idx]
             sample_q = self.data_q[idx]
+            
             label = self.drone_ids[idx]
             
             sample = np.concatenate([sample_i, sample_q])
@@ -101,7 +107,10 @@ class WiFiDataset(Dataset):
         if self.transform:
             sample = self.transform(sample)
             
-        return sample, label
+        if self.return_indices:
+            return sample, label, idx
+        else:
+            return sample, label
             
     
         
