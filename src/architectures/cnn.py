@@ -109,7 +109,14 @@ class Simple_CNN_1D(nn.Module):
                         padding=padding_size),
                     nn.ReLU(),
                     nn.BatchNorm1d( layers_output_sizes[i]),
-                    nn.MaxPool1d(kernel_size=maxplool_strides, stride = maxplool_strides)
+                    nn.MaxPool1d(kernel_size=maxplool_strides, stride = maxplool_strides),
+                    nn.Conv1d(
+                        in_channels=layers_output_sizes[i],
+                        out_channels= layers_output_sizes[i], 
+                        kernel_size=kernel_size, 
+                        padding=padding_size),
+                    nn.ReLU(),
+                    nn.BatchNorm1d( layers_output_sizes[i]),
                 )
             )
             
@@ -119,6 +126,9 @@ class Simple_CNN_1D(nn.Module):
             )
             cur_signal_length = self._compute_maxpool1d_output_length(
                 input_length=cur_signal_length, stride=maxplool_strides, kernel_size=maxplool_strides
+            )
+            cur_signal_length = self._compute_conv1d_output_length(
+                input_length=cur_signal_length, kernel_size = kernel_size
             )
             
         # total size of the output tensor(num_chanhnels, signal_length)
@@ -133,10 +143,14 @@ class Simple_CNN_1D(nn.Module):
             nn.Linear(output_size, features_size),
             ]
         )
-        return nn.Sequential(*layers)
+        return nn.ModuleList(layers)
         
-    def forward(self, x):
-        features = self.feature_layers(x)
+    def forward(self, x, large_aug = None, aug_index = None):
+        features = x
+        for i in range(len(self.feature_layers)):
+            if aug_index == i and large_aug is not None:
+                features = large_aug(features)
+            features = self.feature_layers[i](features)
         return features, self.classif_head(features)
 
 
@@ -345,7 +359,7 @@ class AE_CNN_1D(nn.Module):
         
         return nn.ModuleList(layers), maxunpooling_layers_positions
         
-    def forward(self, x)->Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x, aug = None, aug_index = None)->Tuple[torch.Tensor, torch.Tensor]:
         """
         Firstly obtain feature map, then reconstruct the initial image from it.
         
