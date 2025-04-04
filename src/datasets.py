@@ -3,248 +3,165 @@ import numpy as np
 from torch.utils.data import Dataset
 import torch
 import pickle
+import pywt
+from torchvision import transforms
+import torchvision
+import glob
+import json
 
 class DronesDataset(Dataset):
-    
-    name = 'DronesDataset'
-    
-    def __init__(self, dataset_path, uavs=None, bursts=None,heights =None, transform=None, limit=None, complex_input = False, return_indices=False, limit_samples_per_device = None):
-        self.dataset_path = dataset_path
-        self.transform = transform
-        self.limit = limit
-        self.sigma = 7239
-        self.mu = 1.5
+    """
+    Soruce: Caron, Mathilde, et al. "Deep clustering for unsupervised learning of visual features." Proceedings of the European conference on computer vision (ECCV). 2018.
+    """
+    def __init__(self, filedir: str, input_size: int = 1024, devices=None, bursts=None, heights=None, 
+                 return_indices=False, transform_to_2d=None):
+        self.transform_to_2d = transform_to_2d
         self.return_indices = return_indices
 
-        with h5py.File(self.dataset_path, mode="r", swmr=True) as fp:
-            self.drone_ids = fp['labels'][:,0]
-            self.dists = fp['labels'][:,1]
-            self.bursts = fp['labels'][:,2]
-            
-            mask = [self.drone_ids[i] in uavs and self.bursts[i] in bursts and self.dists[i] in heights  for i in range(len(self.drone_ids))]
+        files_list = list(glob.glob(f"{filedir}*.bin"))
+        self.data = []
 
-            if complex_input:
-                self.data_i = np.real(fp['data'][mask])
-                self.data_q = np.imag(fp['data'][mask])
-            else:
-                self.data_i = fp['data_i'][mask]
-                self.data_q = fp['data_q'][mask]
-            
-            
-            self.drone_ids = np.array(self.drone_ids[mask])
-            self.dists = self.dists[mask]
-            self.bursts = self.bursts[mask]
-            self.data_length = sum(mask)
-            
-        if limit_samples_per_device is not None:
-            mask = np.zeros(self.data_length, dtype = bool)
-            ids = np.arange(self.data_length)
-            for i in uavs:
-                if sum(self.drone_ids == i) > limit_samples_per_device:
-                    cur_ids = ids[self.drone_ids == i]
-                    cur_ids = np.random.choice(cur_ids, size = limit_samples_per_device, replace = False)
-                    mask[cur_ids] = True
-                else:
-                    cur_ids = ids[self.drone_ids == i]
-                    mask[cur_ids] = True
-                    
 
-            self.drone_ids = self.drone_ids[mask]
-            self.dists = self.dists[mask]
-            self.bursts = self.bursts[mask]
-            self.data_length = sum(mask)
-            self.data_i = self.data_i[mask]
-            self.data_q = self.data_q[mask]
-        
-    
+        for file_name in files_list:
+            json_file_name = f"{file_name[:-3]}json"
+
+            try:
+                with open(json_file_name, 'r') as f:
+                    json_file = json.load(f)
+            except Exception as e:
+                print(f"Error reading {json_file_name}: {e}")
+                continue
+
+            burst_number = int(file_name.split('_')[2][5:])
+            uav = int(json_file['annotations']['transmitter']['core:UAV'][3:])
+            height = int(json_file['annotations']['core:distance'][:-2])
+
+            if (devices and uav not in devices) or (bursts and burst_number not in bursts) or (heights and height not in heights):
+                continue
+
+            with open(file_name, 'rb') as f:
+                cur_data = np.frombuffer(f.read(), np.float16)
+                data_i = cur_data[::2]
+                data_q = cur_data[1::2]
+                cut_len = len(data_i) // input_size * input_size
+
+                data_i = data_i[:cut_len]
+                data_q = data_q[:cut_len]
+
+                for i in range(cut_len // input_size):
+                    self.data.append((np.concatenate(
+                        [
+                        data_i[i * input_size:(i + 1) * input_size][np.newaxis, :],
+                        data_q[i * input_size:(i + 1) * input_size][np.newaxis, :]
+                        ]), uav))
+
     def __len__(self):
-        if self.limit:
-            return self.limit
-        else:
-            return self.data_length
+        return len(self.data)
 
     def __getitem__(self, idx):
+        data, uav = self.data[idx]
         
-        with h5py.File(self.dataset_path, mode="r", swmr=True) as fp:
-            sample_i = self.data_i[idx]
-            sample_q = self.data_q[idx]
-            
-            label = self.drone_ids[idx]
-            
-            sample = np.concatenate([sample_i, sample_q])
-            sample = sample.reshape((2,-1))
-            
-        if self.transform:
-            sample = self.transform(sample)
+        if self.transform_to_2d:
+            wavelet = self.transform_to_2d['wavelet']
+            scales = self.transform_to_2d['scales']
+            resize_to = self.transform_to_2d['resize_to']
 
-        if self.return_indices:
-            return sample, label, idx
-        else:
-            return sample, label
+            data = data[0] + 1j * data[1]
+            coefs, _ = pywt.cwt(data, np.arange(1, scales + 1), wavelet)
+            data = np.stack([coefs.real, coefs.imag], axis=0)
+            data = transforms.Resize(size=resize_to)(torch.tensor(data, dtype=torch.float32))
 
-class WiFiDataset(Dataset):
-    
-    name = 'WiFiDataset'
-    
-    def __init__(self, dataset_path, uavs, transform=None, limit=None, complex_input = False, return_indices=False):
-        self.dataset_path = dataset_path
-        self.transform = transform
-        self.limit = limit
-        self.return_indices = return_indices
-        
-        with h5py.File(self.dataset_path, mode="r", swmr=True) as fp:
-            self.drone_ids = fp['labels'][:,0]
-            
-            mask = [self.drone_ids[i] in uavs for i in range(len(self.drone_ids))]
-
-            if complex_input:
-                self.data_i = np.real(fp['data'][mask])
-                self.data_q = np.imag(fp['data'][mask])
-            else:
-                self.data_i = fp['data_i'][mask]
-                self.data_q = fp['data_q'][mask]
-            
-            self.drone_ids = self.drone_ids[mask]
-
-            self.data_length = sum(mask)
-    
-    def __len__(self):
-        if self.limit:
-            return self.limit
-        else:
-            return self.data_length
-
-    def __getitem__(self, idx):
-        
-        with h5py.File(self.dataset_path, mode="r", swmr=True) as fp:
-            sample_i = self.data_i[idx]
-            sample_q = self.data_q[idx]
-            
-            label = self.drone_ids[idx]
-            
-            sample = np.concatenate([sample_i, sample_q])
-            sample = sample.reshape((2,-1))
-            
-        if self.transform:
-            sample = self.transform(sample)
-            
-        if self.return_indices:
-            return sample, label, idx
-        else:
-            return sample, label
+        return (data, uav, idx) if self.return_indices else (data, uav)
 
 
-class LorRaDataset(
-   Dataset
-):
-    def __init__(self, filedir:str, slice_length:int=1024, selected_uavs=None, selected_days=None, return_indices=False, max_smaples_per_transmitions=400000):
-        
-        self.selected_uavs = selected_uavs
+class LoRaDataset(Dataset):
+    """
+    Soruce:  LoRa Device Fingerprinting in the Wild: Disclosing RF Data-Driven Fingerprint Sensitivity to Deployment
+Variability. IEEE Access, pp: 142893–142909, October 2021.
+    """
+    def __init__(self, filedir: str, input_size: int = 1024, devices=None, selected_days=None, 
+                 return_indices=False, transform_to_2d=None):
+        self.devices = devices
         self.selected_days = selected_days
         self.filedir = filedir
-        self.total_days = len(selected_days)
-        self.total_devices = len(selected_uavs)
-        self.total_transmittions = 1
-        self.transmittion_length = max_smaples_per_transmitions
-        self.slice_length = slice_length
-        self.total_len = self.total_days * self.total_devices * self.total_transmittions * self.transmittion_length // slice_length
+        self.transform_to_2d = transform_to_2d
         self.return_indices = return_indices
+        self.slice_length = input_size * 2
+        self.total_days = len(selected_days)
+        self.total_devices = len(devices)
+        self.total_transmissions = 1
+        self.transmission_length = 400000
+        self.total_len = (self.total_days * self.total_devices * self.total_transmissions * self.transmission_length) // self.slice_length
+
     def __len__(self):
         return self.total_len
 
     def __getitem__(self, idx):
-        cur_div = self.total_devices * self.total_transmittions * self.transmittion_length // self.slice_length
+        cur_div = self.total_devices * self.total_transmissions * self.transmission_length // self.slice_length
         day = idx // cur_div
-        idx = idx % cur_div
+        idx %= cur_div
 
-        cur_div = self.total_transmittions * self.transmittion_length // self.slice_length
+        cur_div = self.total_transmissions * self.transmission_length // self.slice_length
         device = idx // cur_div
-        idx = idx % cur_div
+        idx %= cur_div
 
-        cur_div = self.transmittion_length // self.slice_length
+        cur_div = self.transmission_length // self.slice_length
         transmission = idx // cur_div
-        idx = idx % cur_div
+        slice_idx = idx % cur_div
 
-        slice = idx
-
-        day = self.selected_days[day]
-        device = self.selected_uavs[device]
-        print(slice)
-        with open(f"{self.filedir}/Day_{day}/device_{device}/trans_{transmission+1}.dat", 'rb') as f:
-            data = np.frombuffer(b''.join([line for line in f]), np.float32)
-            data = data[slice * self.slice_length: (slice+1) * self.slice_length]
+        with open(f"{self.filedir}/Day_{self.selected_days[day]}/device_{self.devices[device]}/trans_{transmission+1}.dat", 'rb') as f:
+            data = np.frombuffer(f.read(), np.float32)
+            data = data[slice_idx * self.slice_length: (slice_idx + 1) * self.slice_length]
             data_i = data[::2]
             data_q = data[1::2]
-            sample = np.concatenate([data_i, data_q])
-            sample = sample.reshape((2,-1))
+            sample = np.stack([data_i, data_q], axis=0)
 
-        if self.return_indices:
-            return sample, device, idx
-        else:
-            return sample, device
+        device = self.devices[device]
+        return (sample, device, idx) if self.return_indices else (sample, device)
 
 
-class WiSig_Dataset(torch.utils.data.Dataset):
-    def __init__(self, 
-                  file:str, 
-                  selected_uavs=None, 
-                  selected_days=None, 
-                  selected_recivers=None, 
-                  return_indices=False,
-                  transforms = None):
-         
+class WiSig_Dataset(Dataset):
+    """
+    Soure: S. Hanna, S. Karunaratne, and D. Cabric, “WiSig: A Large-Scale WiFi Signal Dataset for Receiver and Channel Agnostic RF Fingerprinting,” IEEE Access, vol. 10, pp. 22808–22818, 2022, doi: 10.1109/ACCESS.2022.3154790.
+    """
+    def __init__(self, file: str, devices=None, days=None, selected_receivers=None, return_indices=False, transform_to_2d=None):
         with open(file, 'rb') as f:
-                self.data = pickle.load(f)
-            
+            self.data = pickle.load(f)
+
+        self.transform_to_2d = transform_to_2d
         self.return_indices = return_indices
-        self.transforms = transforms
+        self.devices = devices or list(range(len(self.data['tx_list'])))
+        self.selected_receivers = selected_receivers or list(range(len(self.data['rx_list'])))
+        self.selected_days = days or list(range(len(self.data['capture_date_list'])))
 
-        self.num_transmitters = len(self.data['tx_list'])
-        self.num_recivers = len(self.data['rx_list'])
-        self.num_dates = len(self.data['capture_date_list'])
-         
-        if selected_uavs is not None:
-            self.selected_uavs = selected_uavs
-        else:
-            self.selected_uavs = [i for i in range(self.num_transmitters)]
+        self.data_ordered = [
+            (sample, i)
+            for i in self.devices
+            for j in self.selected_receivers
+            for m in self.selected_days
+            for sample in self.data['data'][i][j][m][1]
+        ]
 
-        if selected_recivers is not None:
-            self.selected_recivers = selected_recivers
-        else:
-            self.selected_recivers = [i for i in range(self.num_recivers)]
-
-        if selected_days is not None:
-            self.selected_days = selected_days
-        else:
-            self.selected_days = [i for i in range(self.num_dates)]
-
-        self.data_ordered = []
-
-        for i in self.selected_uavs:
-            for j in self.selected_recivers:
-                for m in self.selected_days:
-                    for k in range(len(self.data['data'][i][j][m][1])):
-                        self.data_ordered.append(
-                            (self.data['data'][i][j][m][1][k],
-                            i)
-                        )
-    
     def __len__(self):
         return len(self.data_ordered)
 
     def __getitem__(self, idx):
         sample, tx = self.data_ordered[idx]
-
         sample = sample.T
 
-        if self.transforms is not None:
-            sample = self.transforms(sample)
+        sample = sample.astype(np.float32)
+        
+        if self.transform_to_2d:
+            wavelet = self.transform_to_2d['wavelet']
+            scales = self.transform_to_2d['scales']
+            resize_to = self.transform_to_2d['resize_to']
 
-        if self.return_indices:
-            return sample, tx, idx
-        else:
-            return sample, tx
+            sample = sample[0] + 1j * sample[1]
+            coefs, _ = pywt.cwt(sample, np.arange(1, scales + 1), wavelet)
+            sample = np.stack([coefs.real, coefs.imag], axis=0)
+            sample = transforms.Resize(size=resize_to)(torch.tensor(sample, dtype=torch.float32))
 
+        return (sample, tx, idx) if self.return_indices else (sample, tx)
         
     
             

@@ -1,6 +1,7 @@
 import torch
 import numpy as np
-from sklearn.metrics import roc_auc_score, f1_score
+from sklearn.metrics import roc_auc_score, f1_score, precision_score, recall_score,  accuracy_score
+from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 
@@ -67,6 +68,8 @@ def get_scores(
         k_means = KMeans(n_clusters=clusters_num)
         pca = PCA(n_components=20)
 
+        print(test_features.max(), train_features.max())
+
         train_features = pca.fit_transform(train_features)
         test_features = pca.transform(test_features)
         
@@ -89,7 +92,7 @@ def get_scores(
 
     return np.array(scores)
 
-def metrics(scores: np.ndarray, targets: np.ndarray, threshold: float) -> dict:
+def get_metrics(scores: np.ndarray, targets: np.ndarray, threshold: float, prefix: str) -> dict:
     """
     Calculate evaluation metrics.
 
@@ -103,8 +106,109 @@ def metrics(scores: np.ndarray, targets: np.ndarray, threshold: float) -> dict:
     """
     roc_auc = roc_auc_score(targets, scores)
     f1 = f1_score(targets, scores > threshold)
+    precision = precision_score(targets, scores > threshold)
+    recall = recall_score(targets, scores > threshold)
+    accuracy = accuracy_score(targets, scores > threshold)
     
     return {
-        'roc_auc': roc_auc,
-        'f1': f1,
+        f"{prefix}_roc_auc": roc_auc,
+        f"{prefix}_f1": f1,
+        f"{prefix}_precision": precision,
+        f"{prefix}_recall": recall,  
+        f"{prefix}_accuracy": accuracy
     }
+
+
+def cluster_features(train_features, test_features, clusters_num):
+    k_means = KMeans(n_clusters=clusters_num)
+    pca = PCA(n_components=20)
+
+    train_features = pca.fit_transform(train_features)
+    test_features = pca.transform(test_features)
+    
+    train_clusters = k_means.fit_predict(train_features)
+    test_clusters = k_means.predict(test_features)
+    cluster_centers = k_means.cluster_centers_
+
+    return train_features, test_features, train_clusters, test_clusters, cluster_centers
+
+
+def clusters_metrics(train_features, test_features, clusters_num, prefix):
+
+    """
+    
+    """
+    train_features,\
+    test_features,\
+    train_clusters,\
+    test_clusters, cluster_centers = cluster_features(train_features, test_features, clusters_num)
+
+    silhouette_train = silhouette_score(train_features, train_clusters)
+    silhouette_test = silhouette_score(test_features, test_clusters)
+
+    davies_bouldin_train = davies_bouldin_score(train_features, train_clusters)
+    davies_bouldin_test = davies_bouldin_score(test_features, test_clusters)
+
+    calinski_harabasz_train = calinski_harabasz_score(train_features, train_clusters)
+    calinski_harabasz_test = calinski_harabasz_score(test_features, test_clusters)
+    
+    metrics = {
+        f"{prefix}_silhouette_train": silhouette_train,
+        f"{prefix}_silhouette_test": silhouette_test,
+
+        f"{prefix}_davies_bouldin_train": davies_bouldin_train,
+        f"{prefix}_davies_bouldin_test": davies_bouldin_test,
+
+        f"{prefix}_calinski_harabasz_train": calinski_harabasz_train,
+        f"{prefix}_calinski_harabasz_test": calinski_harabasz_test
+    }
+
+    return metrics
+    
+    
+def get_supervised_metrics_features(train_features, test_features, targets, clusters_numbers):
+    all_metrics = {}
+    
+    for clusters_number in clusters_numbers:
+        scores = get_scores(
+            train_features, 
+            test_features, 
+            criterion = 'right-sided',
+            features_type ='features',
+            clusters_num = clusters_number)
+
+        scores = 1 - scores
+        
+        all_metrics = all_metrics | get_metrics(scores, targets, 0.95, clusters_number)
+    
+    return all_metrics
+
+
+def get_supervised_metrics_probas(train_features, test_features, targets, clusters_numbers):
+    all_metrics = {}
+    
+    scores = get_scores(
+        train_features, 
+        test_features, 
+        criterion = 'left-sided',
+        features_type ='clusters_probas')
+
+    scores = 1 - scores
+        
+    all_metrics = get_metrics(scores, targets, 0.95, 'probas')
+    
+    return all_metrics
+
+def get_unsupervised_metrics_features(train_features, test_features, clusters_numbers):
+    all_metrics = {}
+    for clusters_num in clusters_numbers:
+        all_metrics = all_metrics | clusters_metrics(train_features, test_features, clusters_num, clusters_num)
+
+    return all_metrics
+
+
+
+
+
+        
+    

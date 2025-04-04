@@ -4,8 +4,12 @@ import torch
 from torch import nn
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
+from src.metrics import get_supervised_metrics_features
 import tqdm
 import pickle
+import math
+import src.metrics as metrics
+
 
 class Trainer(ABC):
     """
@@ -42,15 +46,26 @@ class Trainer(ABC):
         """
         pass
 
+    @abstractmethod
+    def evaluate():
+        """
+        Evaluate the model.
+        """
+        pass
+
 
 class SIM_CLR_Trainer(Trainer):
 
     """
-    The implementation of
-    ''X. Hao, Z. Feng, R. Liu, S. Yang, L. Jiao, and R. Luo, 
-    "Contrastive self-supervised clustering for specific emitter identification,” IEEE Internet of 
-    Things Journal, vol. 10, no. 23, pp. 20 803–20 818, 2023.''
-    with learnable augmentations.
+    Inspired by
+    
+        ''X. Hao, Z. Feng, R. Liu, S. Yang, L. Jiao, and R. Luo, 
+        "Contrastive self-supervised clustering for specific emitter identification,” IEEE Internet of 
+        Things Journal, vol. 10, no. 23, pp. 20 803–20 818, 2023.''
+    
+    and 
+        ''Viewmaker Networks: Learning Views for Unsupervised Representation Learnin. Alex Tamkin, Mike Wu, Noah Goodman''
+    
 
     DataLoader dataset objects must have the flag "return_indices",
     which enebles or removes sample indices: (inputs, device_ids, ids) or (inputs, device_ids).
@@ -59,18 +74,49 @@ class SIM_CLR_Trainer(Trainer):
 
     """
     
-    def __init__(self, hard_postitves_mining=False, hard_negatives_mining=False):
+    def __init__(self, 
+                 models: nn.ModuleDict, 
+                 optimizers: dict,
+                 hard_postitves_mining: bool=False, 
+                 hard_negatives_mining: bool=False, 
+                 temperature: float = 1, 
+                 clusters_loss: bool = False, 
+                 augs_type = 'static', 
+                 num_epochs = 200,
+                 device = 'cpu',
+                 large_augs = False
+                ):
         """
         Init the ContrastiveTrainer object.
         
         Args:
-            augs (nn.ModuleList): list of augimentations applied to the data samples.
+            models (nn.ModuleDict): Dict of models used in training. Format: {
+                'features extrcactor': features extractor model, 
+                'mlp_instance': mlp head for instance loss,
+                'mlp_cluster': mlp head for cluster loss, optional,
+                'augs': augmentations}.
             hard_postitves_mining (bool): remove 1/4 positives with the hieghst similarity, defalut False.
             hard_negatives_mining (bool): remove 1/4 negatives with the lowest similarity, defalut False.
-            
+            temperature (float): temperature in cross entropy loss.
+            clusters_loss (bool): to use cluster loss or not.
+            augs_type (str): 'static' or 'learnable'.
+            total_epochs (int): num epochs to learn.
+            optimizers (dict): Optimizers for learning in format: {
+                'main_optimizer': optimzer for features extractors and mlp heads,
+                'augs_optimizer': optimzer for augs,
+                }
         """
         self.hard_postitves_mining = hard_postitves_mining
         self.hard_negatives_mining = hard_negatives_mining
+        self.models = models
+        self.optimizers = optimizers
+        self.augs_type = augs_type
+        self.clusters_loss = clusters_loss
+        self.temperature = temperature
+        self.num_epochs = num_epochs
+        self.device = device
+        self.large_augs = large_augs
+        
         
     def similarity(self, a, b, type = 'cosine'):
         """
@@ -89,27 +135,31 @@ class SIM_CLR_Trainer(Trainer):
         
         if type == 'cosine':
             
-            #(batch_size,)
-            
-            a_norm = torch.sqrt((a**2).sum(axis=-1))
-            b_norm = torch.sqrt((b**2).sum(axis=-1))
+            #(batch_size,)   
+            a_norm = torch.norm(a, dim = 1, p = 2) 
+            b_norm = torch.norm(b, dim = 1, p = 2)
+
+            a = a / a_norm[:, None]
+            b = b / b_norm[:, None]
 
             #(batch_size_1, batch_size_2)
-
-            sims = a @ b.T / (a_norm[:, None] * b_norm[None, :])
+            sims = a @ b.T
 
             return sims
 
         if type == 'l_2':
 
             #(batch_size_1, batch_size_2, features)
-
             diff = (a[:, None, :] - b[None, :, :])
 
-            diff = torch.sqrt(torch.mean(diff**2, -1))
+            diff  = torch.norm(diff, p=2, dim=-1)
 
             return diff
-                
+    def _normalize(self, x):
+        mean = torch.tensor([0.491, 0.482, 0.446], device=x.device)
+        std = torch.tensor([0.247, 0.243, 0.261], device=x.device)
+        x = (x - mean[None, :, None, None]) / std[None, :, None, None]
+        return x
 
     def compute_loss(self, p_samples: torch.Tensor, q_samples: torch.Tensor) -> torch.Tensor:
         """
@@ -122,17 +172,19 @@ class SIM_CLR_Trainer(Trainer):
         Returns:
             torch.Tensor: Computed loss.
         """
+        
         loss_f = torch.nn.CrossEntropyLoss()
 
         # Compute similarity matrices, (batch_size, batch_size)
-        p_p_sim = self.similarity(p_samples, p_samples)
-        q_q_sim = self.similarity(q_samples, q_samples)
-        p_q_sim = self.similarity(p_samples, q_samples)
+        p_p_sim = self.similarity(p_samples, p_samples, type = 'cosine')
+        q_q_sim = self.similarity(q_samples, q_samples, type = 'cosine')
+        p_q_sim = self.similarity(p_samples, q_samples, type = 'cosine')
 
         # Remove the diagonal elements from similarity matrices, (batch_size, batch_size-1)
         n = p_samples.size(0)
-        p_p_sim = p_p_sim.flatten()[1:].view(n-1, n+1)[:,:-1].reshape(n, n-1)
-        q_q_sim = q_q_sim.flatten()[1:].view(n-1, n+1)[:,:-1].reshape(n, n-1)
+        mask = torch.eye(n, device=p_p_sim.device, dtype=torch.bool)
+        p_p_sim = p_p_sim[~mask].view(n, n - 1)
+        q_q_sim = q_q_sim[~mask].view(n, n - 1)
         
         if self.hard_negatives_mining:
             # Sort and select top 75% similar negatives
@@ -158,34 +210,87 @@ class SIM_CLR_Trainer(Trainer):
             labels = labels[indices]
 
         # Compute loss
-        l_p = loss_f(p_sims, labels)
-        l_q = loss_f(q_sims, labels)
+        l_p = loss_f(p_sims / self.temperature, labels)
+        l_q = loss_f(q_sims / self.temperature, labels)
 
         loss = torch.mean(l_p + l_q) / 2
 
         return loss
-    
+
+    def _process_batch(self, batch, type = 'features extractor'):
         
-    def train_epoch(self, model: torch.nn.Module, mlp_instance: torch.nn.Module, mlp_cluster: torch.nn.Module, 
-                    augs: torch.nn.ModuleList, train_loader: torch.utils.data.DataLoader, optimizer: torch.optim.Optimizer, 
-                    device: torch.device = torch.device('cpu'), epoch_type: str = 'features extractor', 
-                    cluster_loss: bool = True, scheduler=None) -> float:
+        batch = batch.to(self.device)
+
+        features_extractor = self.models['feature_extractor'].to(self.device)
+        features_extractor.train()
+
+        augs = self.models['augs'].to(self.device)
+        augs.train()
+
+        if self.clusters_loss:
+            mlp_cluster = self.models['mlp_cluster'].to(self.device)
+            mlp_cluster.train()
+
+        mlp_instance = self.models['mlp_instance'].to(self.device)
+        mlp_instance.train()
+
+        p_aug, q_aug = np.random.choice(augs, size = 2)
+            
+        batch_p = (p_aug(batch))
+        batch_q = (q_aug(batch))
+
+        if self.large_augs:
+            
+            large_augs = self.models['large_augs'].to(self.device)
+            large_augs.train()
+
+            p_features = features_extractor.second_part(
+                large_augs(features_extractor.first_part(batch_p))
+            )
+
+            q_features = features_extractor.second_part(
+                large_augs(features_extractor.first_part(batch_q))
+            )
+            
+        else:
+            p_features, _ = features_extractor(batch_p)
+            q_features, _ = features_extractor(batch_q)
+
+        
+            
+        p_instance, q_instance = mlp_instance(p_features), mlp_instance(q_features)
+
+        loss = self.compute_loss(p_instance, q_instance)
+
+        if self.clusters_loss:
+            p_clusters, q_clusters = mlp_instance(mlp_cluster), mlp_instance(mlp_cluster)
+            loss += self.compute_loss(p_clusters.T, q_clusters.T)
+
+        if type == 'features extractor':
+            optimizer = self.optimizers['main_optimizer']
+            
+        else:
+            loss = -loss
+            optimizer = self.optimizers['augs_optimizer']
+            
+        optimizer.zero_grad()
+        
+        loss.backward()
+        
+        optimizer.step()
+        
+        return loss.item()
+            
+            
+    def train_epoch(self, train_loader: torch.utils.data.DataLoader, scheduler=None) -> float:
         """
         Train the feature extractor and MLP heads for one epoch.
 
         Args:
-            model (torch.nn.Module): Feature extractor, output must be (features, smth), where smth is not used.
-            mlp_instance (torch.nn.Module): MLP head for instance loss.
-            mlp_cluster (torch.nn.Module): MLP head for cluster loss.
-            augs (torch.nn.ModuleList): List of augmentations.
             train_loader (torch.utils.data.DataLoader): DataLoader for the training data. 
                 The flag "return_indices" must exist in train_loader.dataset object, 
                 which makes DataLoader return sample indices at the end of the tuple: (inputs, device_ids, ids).
-            optimizer (torch.optim.Optimizer): Optimizer. The last parameter group must be augmentations.
             device (torch.device): Device to train on (cpu or cuda).
-            epoch_type (str): Type of epoch ('features extractor' or other).
-            cluster_loss (bool): Whether to compute cluster loss.
-            scheduler: Learning rate scheduler.
 
         Returns:
             float: Average loss for the epoch.
@@ -193,153 +298,113 @@ class SIM_CLR_Trainer(Trainer):
         
         running_loss = 0
         c = 0
-        
-        model = model.to(device)
-        model.train()
-
-        mlp_instance.to(device)
-        mlp_instance.train()
-
-        mlp_cluster.to(device)
-        mlp_cluster.train()
-
-        augs.to(device)
-        augs.train()
 
         train_loader.dataset.return_indices = False
 
         for batch_inputs, batch_device_ids in train_loader:
-            optimizer.zero_grad()
-
-            # (batch_size, f_size)
-            batch_inputs= batch_inputs.to(device)
-                
-            # apply augs
-            p_aug, q_aug = np.random.choice(augs, size = 2, replace = False)
-            batch_p = p_aug(batch_inputs)
-            batch_q = q_aug(batch_inputs)
-
-            # instance and cluster representations
-            p_features, _ = model(batch_p)
-            q_features, _ = model(batch_q)
             
-            # (batch size, num_features)
-            p_instance, q_instance = mlp_instance(p_features), mlp_instance(q_features)
-
-            # (batch size, num_clusters)
-            p_cluster, q_cluster = mlp_cluster(p_features), mlp_cluster(q_features)
-
-            # instance and cluster loss
-            loss = self.compute_loss(p_instance, q_instance)
-
-            if cluster_loss:
-                loss += self.compute_loss(p_cluster.T, q_cluster.T)
-
-            if epoch_type == 'features extractor':
-
-                aug_lr = optimizer.param_groups[-1]['lr']
-                optimizer.param_groups[-1]['lr'] = 0
-                
-                (loss).backward()
-                optimizer.step()
-
-                optimizer.param_groups[-1]['lr'] = aug_lr
-                
-            elif epoch_type == 'augs':
-
-                feat_lrs = []
-
-                for group in optimizer.param_groups[:-1]:
-                    feat_lrs.append(group['lr'])
-                    group['lr'] = 0
-                
-                (-loss).backward()
-                optimizer.step()
-            
-
-                for lr, group in zip(feat_lrs, optimizer.param_groups[:-1]):
-                    group['lr'] = lr
-            
-            running_loss += (loss).item()
             c += 1
 
+            loss = self._process_batch(batch_inputs, 'features extractor')
+
+            if self.augs_type == 'learnable':
+                loss -= self._process_batch(batch_inputs, 'augs')
+                loss /= 2
+                
+            running_loss += loss
+            
         if scheduler:
             scheduler.step()
 
         return running_loss / c
 
-    def get_features(self, model: torch.nn.Module, loader: torch.utils.data.DataLoader, device: torch.device = torch.device('cpu'), mlp: torch.nn.Module = None) -> torch.Tensor:
+    def get_features(self, loader: torch.utils.data.DataLoader, 
+                    type = 'features') -> torch.Tensor:
         """
         Get final embeddings.
 
         Args:
-            model (torch.nn.Module): Feature extractor, output must be (features, smth), where smth is not used.
             loader (torch.utils.data.DataLoader): DataLoader. The flag "return_indices" must exist in train_loader.dataset object, 
                 which makes DataLoader return sample indices at the end of the tuple: (inputs, device_ids, ids).
             device (torch.device): Device to use (cpu or cuda).
-            mlp (torch.nn.Module): MLP head upon feature extractor, default is None which means no MLP is applied.
             
         Returns:
             torch.Tensor: Concatenated features from all batches.
         """
-        all_features = []
-        
-        model = model.to(device)
+        model = self.models['feature_extractor'].to(self.device)
         model.eval()
 
-        if mlp is not None:
-            mlp = mlp.to(device)
-            mlp.eval()
+        if self.clusters_loss and type == 'probas':
+            mlp_cluster = self.models['mlp_cluster'].to(self.device)
+            mlp_cluster.eval()
+            
+        all_features = []
 
         loader.dataset.return_indices = False
         
         with torch.no_grad():
+            
             for inputs, target in tqdm.tqdm(loader):
-                inputs, target = inputs.to(device), target.to(device)
+                inputs, target = inputs.to(self.device), target.to(self.device)
 
                 features, _ = model(inputs)
                 
-                if mlp is not None:
-                    features = mlp(features)
+                if self.clusters_loss and type == 'probas':
+                    features = mlp_cluster(features)
                     
                 all_features.append(features.cpu())
 
         return torch.cat(all_features)
 
+    def evaluate(self, train_loader, test_loader, targets, clusters_numbers=(40,)):
+        
+        train_features, test_features = self.get_features(train_loader), self.get_features(test_loader)
 
-    def save_checkpoint(self, model: torch.nn.Module, mlp_instance: torch.nn.Module, mlp_cluster: torch.nn.Module, 
-                        augs: torch.nn.Module, file_path: str) -> None:
+
+        supervised_metrics_features = metrics.get_supervised_metrics_features(
+            train_features, test_features, targets, clusters_numbers = clusters_numbers
+        )
+
+        unsupervised_metrics_features = metrics.get_unsupervised_metrics_features(
+            train_features, test_features, clusters_numbers = clusters_numbers
+        )
+        
+        if self.clusters_loss:
+            
+            train_probas, test_probas = self.get_features(train_loader, type = 'probas'),\
+                self.get_features(test_loader, type = 'probas')
+            
+            supervised_metrics_porbas = metrics.get_supervised_metrics_probas(
+                train_probas, test_probas, targets, clusters_numbers)
+            
+        all_metics = supervised_metrics_features | supervised_metrics_features
+        
+        if self.clusters_loss:
+           
+           all_metics = all_metics | supervised_metrics_porbas
+
+        return all_metics
+
+    def save_checkpoint(self, file_path: str) -> None:
         """
         Save a checkpoint of the model.
 
         Args:
-            model (torch.nn.Module): Feature extractor.
-            mlp_instance (torch.nn.Module): MLP head for instance loss.
-            mlp_cluster (torch.nn.Module): MLP head for cluster loss.
-            augs (torch.nn.ModuleList): List of augmentations.
             file_path (str): Path to save the checkpoint.
 
         Returns:
             None
         """
         checkpoint = {
-            'model_state_dict': model.state_dict(),
-            'mlp_instance_state_dict': mlp_instance.state_dict(),
-            'mlp_cluster_state_dict': mlp_cluster.state_dict(),
-            'augs_state_dict': [aug.state_dict() for aug in augs]
+            'state_dict': self.models.state_dict()
         }
         torch.save(checkpoint, file_path)
 
-    def load_checkpoint(self, model: torch.nn.Module, mlp_instance: torch.nn.Module, mlp_cluster: torch.nn.Module, 
-                        augs: torch.nn.ModuleList, file_path: str) -> None:
+    def load_checkpoint(self, file_path: str) -> None:
         """
         Load a checkpoint of the model.
 
         Args:
-            model (torch.nn.Module): Feature extractor.
-            mlp_instance (torch.nn.Module): MLP head for instance loss.
-            mlp_cluster (torch.nn.Module): MLP head for cluster loss.
-            augs (torch.nn.ModuleList): List of augmentations.
             file_path (str): Path to the checkpoint file.
 
         Returns:
@@ -347,47 +412,54 @@ class SIM_CLR_Trainer(Trainer):
         """
 
         checkpoint = torch.load(file_path)
-        model.load_state_dict(checkpoint['model_state_dict'])
-        mlp_instance.load_state_dict(checkpoint['mlp_instance_state_dict'])
-        mlp_cluster.load_state_dict(checkpoint['mlp_cluster_state_dict'])
-        for aug, state_dict in zip(augs, checkpoint['augs_state_dict']):
-            aug.load_state_dict(state_dict)
-        
+        self.models.load_state_dict(checkpoint['state_dict'])
 
 class AE_Trainer(Trainer):
     
     """
-    Classical Auto Encoder
+    Classical Auto Encoder.
+
+    Inspired by L. Milosheski, M. Mohorčič and C. Fortuna, "Spectrum Sensing With Deep Clustering: Label-Free Radio Access Technology Recognition," in IEEE Open Journal of the Communications Society, vol. 5, pp. 4746-4763, 2024, doi: 10.1109/OJCOMS.2024.3436601.
+    
     """
     
-    def __init__(self, noise_std: float = 0):
+    def __init__(self, models: nn.ModuleDict, optimizers: dict, 
+                noise_std: float = 0, num_epochs = 200, device = 'gpu'):
         """
         Args:
            noise_std (float): Amount of normal noise applied to the signal.
+           models (nn.ModuleDict): Dict of models used in training. Format: {
+                'features extrcactor': features extractor model}.
+           optimizers (dict): {'main_optimizer': optimizer for features extractor}.
+           num_epochs (int): num_epochs
         """
         self.noise_std = noise_std
+        self.models = models
+        self.optimizers = optimizers
+        self.num_epochs = num_epochs
+        self.num_epochs = num_epochs
+        self.device = device
+        
 
-    def train_epoch(self, model: torch.nn.Module, train_loader: torch.utils.data.DataLoader, optimizer: torch.optim.Optimizer, device: torch.device = torch.device('cpu'), scheduler: torch.optim.lr_scheduler._LRScheduler = None) -> float:
+    def train_epoch(self, train_loader, scheduler: torch.optim.lr_scheduler._LRScheduler = None) -> float:
         """
         Train the feature extractor for one epoch.
 
         Args:
-            model (torch.nn.Module): Feature extractor. Must return two outputs: (features, reconstructed).
-            train_loader (torch.utils.data.DataLoader): DataLoader for the training data. 
-                The flag "return_indices" must exist in train_loader.dataset object, 
-                which makes DataLoader return sample indices at the end of the tuple: (inputs, device_ids, ids).
-            optimizer (torch.optim.Optimizer): Optimizer.
             device (torch.device): Device to train on (CPU or CUDA).
             scheduler (torch.optim.lr_scheduler._LRScheduler, optional): Learning rate scheduler. Default is None.
 
         Returns:
             float: Loss of the epoch.
         """
+        model = self.models['feature_extractor'].to(self.device)
+        model.train()
+
+        optimizer = self.optimizers['main_optimizer']
+
+        
         running_loss = 0
         c = 0
-        
-        model = model.to(device)
-        model.train()
 
         train_loader.dataset.return_indices = False
         
@@ -395,7 +467,7 @@ class AE_Trainer(Trainer):
 
             optimizer.zero_grad()
 
-            inputs, target = inputs.to(device), target.to(device)
+            inputs, target = inputs.to(self.device), target.to(self.device)
 
             # Apply noise to inputs
             x = (inputs + torch.randn(inputs.shape, device=inputs.device) * self.noise_std) / (1 + self.noise_std)
@@ -412,12 +484,11 @@ class AE_Trainer(Trainer):
             
         return running_loss / c
         
-    def get_features(self, model: torch.nn.Module, loader: torch.utils.data.DataLoader, device: torch.device = torch.device('cpu')) -> torch.Tensor:
+    def get_features(self, loader: torch.utils.data.DataLoader) -> torch.Tensor:
         """
         Get final embeddings.
 
         Args:
-            model (torch.nn.Module): Feature extractor.
             loader (torch.utils.data.DataLoader): DataLoader. 
                 The flag "return_indices" must exist in train_loader.dataset object, 
                 which makes DataLoader return sample indices at the end of the tuple: (inputs, device_ids, ids).
@@ -426,45 +497,60 @@ class AE_Trainer(Trainer):
         Returns:
             torch.Tensor: Concatenated features from all batches.
         """
-        
-        model = model.to(device)
-        model.eval()
 
+        model = self.models['feature_extractor'].to(self.device)
+        model.eval()
+        
         all_features = []
 
         loader.dataset.return_indices = False
 
         for inputs, target in loader:
 
-            inputs, target = inputs.to(device), target.to(device)
+            inputs, target = inputs.to(self.device), target.to(self.device)
 
             _, features = model(inputs)
 
-            all_features.append(features.detach().cpu())
+            all_features.append(features.detach().cpu().view(features.shape[0], -1))
 
         return torch.cat(all_features)
 
-    def save_checkpoint(self, model: torch.nn.Module, file_path: str) -> None:
+    def evaluate(self, train_loader, test_loader, targets, clusters_numbers=(40,)):
+        
+        train_features, test_features = self.get_features(train_loader), self.get_features(test_loader)
+
+
+        supervised_metrics_features = metrics.get_supervised_metrics_features(
+            train_features, test_features, targets, clusters_numbers = clusters_numbers
+        )
+
+        unsupervised_metrics_features = metrics.get_unsupervised_metrics_features(
+            train_features, test_features, clusters_numbers = clusters_numbers
+        )
+            
+        all_metics = supervised_metrics_features | unsupervised_metrics_features
+
+        return all_metics
+
+    def save_checkpoint(self, file_path: str) -> None:
         """
         Save a checkpoint of the model.
 
         Args:
-            model (torch.nn.Module): Feature extractor.
             file_path (str): Path to save the checkpoint.
 
         Returns:
             None
         """
         torch.save({
-            'model_state_dict': model.state_dict(),
+            'model_state_dict': self.models.state_dict(),
             }, file_path)
 
-    def load_checkpoint(self, model: torch.nn.Module, file_path: str) -> None:
+    def load_checkpoint(self, file_path: str) -> None:
         """
         Load a checkpoint of the model.
 
         Args:
-            model (torch.nn.Module): Feature extractor.
             file_path (str): Path to the checkpoint file.
 
         Returns:
@@ -472,21 +558,31 @@ class AE_Trainer(Trainer):
         """
         checkpoint = torch.load(file_path, weights_only=True)
         
-        model.load_state_dict(checkpoint['model_state_dict'])
+        self.models.load_state_dict(checkpoint['model_state_dict'])
     
 
 
 class PCA_Trainer(Trainer):
 
-    def __init__(self):
-        pass
+    def __init__(self, pca: PCA):
+        """
+        Makes PCA
+        
+        Args:
+            pca: PCA solver from as in sklearn
 
-    def train_epoch(self, pca_extractor: PCA, train_loader: torch.utils.data.DataLoader) -> float:
+        Returns:
+            None
+        """
+        
+        self.pca = pca
+        
+
+    def train_epoch(self, train_loader: torch.utils.data.DataLoader) -> float:
         """
         Train the PCA extractor.
 
         Args:
-            pca_extractor (PCA): PCA extractor from sklearn.
             train_loader (torch.utils.data.DataLoader): DataLoader for the training data. 
                 The flag "return_indices" must exist in train_loader.dataset object, 
                 which makes DataLoader return sample indices at the end of the tuple: (inputs, device_ids, ids).
@@ -494,6 +590,7 @@ class PCA_Trainer(Trainer):
         Returns:
             float: Explained variance ratio.
         """
+        model = self.pca
         features_train = []
 
         train_loader.dataset.return_indices = False
@@ -504,16 +601,15 @@ class PCA_Trainer(Trainer):
 
         features_train = torch.cat(features_train)
         
-        pca_extractor.fit(features_train)
+        model.fit(features_train)
 
-        return pca_extractor.explained_variance_ratio_.sum()
+        return model.explained_variance_ratio_.sum()
         
-    def get_features(self, pca_extractor: PCA, loader: torch.utils.data.DataLoader) -> torch.Tensor:
+    def get_features(self, loader: torch.utils.data.DataLoader) -> torch.Tensor:
         """
         Get final embeddings.
 
         Args:
-            pca_extractor (PCA): PCA extractor from sklearn.
             loader (torch.utils.data.DataLoader): DataLoader. 
                 The flag "return_indices" must exist in train_loader.dataset object, 
                 which makes DataLoader return sample indices at the end of the tuple: (inputs, device_ids, ids).
@@ -521,6 +617,7 @@ class PCA_Trainer(Trainer):
         Returns:
             torch.Tensor: Transformed features.
         """
+        model = self.pca
         
         all_features = []
 
@@ -532,9 +629,26 @@ class PCA_Trainer(Trainer):
 
         all_features = torch.cat(all_features)
         
-        return torch.tensor( pca_extractor.transform(all_features))
+        return torch.tensor( model.transform(all_features))
+
+    def evaluate(self, train_loader, test_loader, targets, clusters_numbers=(40,)):
         
-    def save_checkpoint(self, pca_extractor: PCA, file_path: str) -> None:
+        train_features, test_features = self.get_features(train_loader), self.get_features(test_loader)
+
+
+        supervised_metrics_features = metrics.get_supervised_metrics_features(
+            train_features, test_features, targets, clusters_numbers = clusters_numbers
+        )
+
+        unsupervised_metrics_features = metrics.get_unsupervised_metrics_features(
+            train_features, test_features, clusters_numbers = clusters_numbers
+        )
+            
+        all_metics = supervised_metrics_features | unsupervised_metrics_features
+
+        return all_metics
+        
+    def save_checkpoint(self,file_path: str) -> None:
         """
         Save a checkpoint of the PCA extractor.
 
@@ -545,9 +659,10 @@ class PCA_Trainer(Trainer):
         Returns:
             None
         """
+        model = self.pca
 
         with open(file_path, 'wb') as f:
-            pickle.dump(pca_extractor, f)
+            pickle.dump(model, f)
 
        
     def load_checkpoint(self, file_path: str) -> PCA:
@@ -562,30 +677,42 @@ class PCA_Trainer(Trainer):
         """
         
         with open(file_path, 'rb') as f:
-            pca_extractor = pickle.load(f)
-            
-        return pca_extractor
+            self.pca = pickle.load(f)
        
 
 
 class Deep_Clustering_Trainer(Trainer):
-
+    
     """
-    Implementation of deep clustering algorithm.
+    Implementation of deep clustering algorithm. Caron, Mathilde, et al. "Deep clustering for unsupervised learning of visual features." Proceedings of the European conference on computer vision (ECCV). 2018.
 
     Dataloaders datasets objects must have the flag "return_indices" which makes dataloader return samples indices at the end of the touple: (inputs, deivce_ids, ids).
+
+    
     """
 
-    def __init__(self, clusters_update_interval: int, n_clusters: int = 10):
+    def __init__(self, models, optimizers, clusters_update_interval: int = 5, n_clusters: int = 10, num_epochs = 200,
+                device = 'cuda'):
         """
         Args:
             clusters_update_interval (int): Number of epochs between clusters updates.
             n_clusters (int): Number of clusters.
+            optimizers (dict): Optimizers for learning in format: {
+                'main_optimizer': optimzer for features extractors and mlp heads}s
+            models (nn.ModuleDict): Dict of models used in training. Format: {
+                'features extrcactor': features extractor model }
+                
         """
+
+        self.num_epochs = num_epochs
+        self.device = device
+
+        self.models = models
+        self.optimizers = optimizers
 
         # counter for clusters update
         self.cur_counter = 0
-
+        
         # interval between clusters updates
         self.clusters_update_interval = clusters_update_interval
 
@@ -602,13 +729,12 @@ class Deep_Clustering_Trainer(Trainer):
         self.ids = None
         self.p_labels = None
 
-    def get_features(self, model: nn.Module, loader: torch.utils.data.DataLoader, device: torch.device, 
+    def get_features(self, loader: torch.utils.data.DataLoader, 
                      type: str = 'features', return_indices: bool = False) -> torch.Tensor:
         """
         Get final embeddings.
 
         Args:
-            model (torch.nn.Module): Feature extractor. Must return two outputs: (features, scores).
             loader (torch.utils.data.DataLoader): DataLoader. 
                 The flag "return_indices" must exist in train_loader.dataset object, 
                 which makes DataLoader return sample indices at the end of the tuple: (inputs, device_ids, ids).
@@ -620,7 +746,7 @@ class Deep_Clustering_Trainer(Trainer):
             torch.Tensor: Features or scores.
         """
         
-        model = model.to(device)
+        model = self.models['feature_extractor'].to(self.device)
         model.eval()
 
         features_list = []
@@ -631,7 +757,7 @@ class Deep_Clustering_Trainer(Trainer):
         with torch.no_grad():
             for inputs, _, ids in loader:
 
-                inputs = inputs.to(device)
+                inputs = inputs.to(self.device)
 
                 features, scores = model(inputs)
 
@@ -656,35 +782,34 @@ class Deep_Clustering_Trainer(Trainer):
             return torch.cat(features_list)
         
 
-    def _update_labels(self, model: nn.Module, train_loader: torch.utils.data.DataLoader, device: torch.device):
+    def _update_labels(self, train_loader: torch.utils.data.DataLoader):
         """
         Recalculate pseudo labels.
 
         Args:
-            model (torch.nn.Module): Feature extractor. Must return two outputs: (features, scores).
             train_loader (torch.utils.data.DataLoader): Train DataLoader. 
                 The flag "return_indices" must exist in train_loader.dataset object, 
                 which makes DataLoader return sample indices at the end of the tuple: (inputs, device_ids, ids).
             device (torch.device): Device to use (CPU or CUDA).
         """
+        model = self.models['feature_extractor'].to(self.device)
+        model.eval()
         
-        train_features, ids = self.get_features(model, train_loader, device, return_indices=True)
+        train_features, ids = self.get_features( train_loader, return_indices=True)
 
         self.ids = ids
         
         pca = PCA(20)
-        train_features_reduced = pca.fit_transform(train_features, return_indices=True)
+        train_features_reduced = pca.fit_transform(train_features)
 
-        kmeans = KMeans(self.number_of_clustres)
+        kmeans = KMeans(self.n_clusters)
         self.p_labels =  torch.tensor(kmeans.fit_predict(train_features_reduced), dtype=torch.long)
 
-    def train_epoch(self, model: nn.Module, train_loader: torch.utils.data.DataLoader, optimizer: torch.optim.Optimizer, 
-                    device: torch.device = torch.device('cpu'), scheduler: torch.optim.lr_scheduler._LRScheduler = None) -> float:
+    def train_epoch(self, train_loader: torch.utils.data.DataLoader, scheduler: torch.optim.lr_scheduler._LRScheduler = None) -> float:
         """
         Train the model for one epoch.
 
         Args:
-            model (torch.nn.Module): Feature extractor. Must return two outputs: (features, scores).
             train_loader (torch.utils.data.DataLoader): Train DataLoader. 
                 The flag "return_indices" must exist in train_loader.dataset object, 
                 which makes DataLoader return sample indices at the end of the tuple: (inputs, device_ids, ids).
@@ -699,24 +824,27 @@ class Deep_Clustering_Trainer(Trainer):
         running_loss = 0
         c = 0
 
-        if self.cur_counter % self.clustres_update_interval == 0:
-            self.cur_counter = 1
-            self._update_labels(model, train_loader, device)
+        model = self.models['feature_extractor'].to(self.device)
+        model.train()
+
+        if self.cur_counter % self.clusters_update_interval == 0:
+            self.cur_counter = 0
+            self._update_labels(train_loader)
 
         self.cur_counter += 1
 
         train_loader.dataset.return_indices = True
+
+        optimizer = self.optimizers['main_optimizer']
         
-        model = model.to(device)
-        model.train()
  
         for inputs, _, ids in train_loader:
 
             optimizer.zero_grad()
             
-            inputs = inputs.to(device)
+            inputs = inputs.to(self.device)
 
-            p_labels = self.p_labels[self.ids == ids].to(device)
+            p_labels = self.p_labels[ids].to(self.device)
 
             _, scores = model(inputs)
 
@@ -736,26 +864,48 @@ class Deep_Clustering_Trainer(Trainer):
 
         return running_loss / c
 
-    def save_checkpoint(self, model: nn.Module, file_path: str) -> None:
+    def evaluate(self, train_loader, test_loader, targets, clusters_numbers=(40,)):
+        
+        train_features, test_features = self.get_features(train_loader), self.get_features(test_loader)
+
+
+        supervised_metrics_features = metrics.get_supervised_metrics_features(
+            train_features, test_features, targets, clusters_numbers = clusters_numbers
+        )
+
+        unsupervised_metrics_features = metrics.get_unsupervised_metrics_features(
+            train_features, test_features, clusters_numbers = clusters_numbers
+        )
+
+        train_probas, test_probas = self.get_features(train_loader, type = 'scores'),\
+                self.get_features(test_loader, type = 'scores')
+        
+        supervised_metrics_porbas = metrics.get_supervised_metrics_probas(
+                train_probas, test_probas, targets, clusters_numbers)
+
+
+        all_metics = supervised_metrics_features | supervised_metrics_features | supervised_metrics_porbas
+
+        return all_metics
+
+    def save_checkpoint(self, file_path: str) -> None:
         """
         Save a checkpoint of the model.
 
         Args:
-            model (torch.nn.Module): Feature extractor.
             file_path (str): Path to save the checkpoint.
 
         Returns:
             None
         """
 
-        torch.save({'model_state_dict': model.state_dict()}, file_path)
+        torch.save({'model_state_dict': self.models.state_dict()}, file_path)
 
-    def load_checkpoint(self, model: nn.Module, file_path: str) -> None:
+    def load_checkpoint(self, file_path: str) -> None:
         """
         Load a checkpoint of the model.
 
         Args:
-            model (torch.nn.Module): Feature extractor.
             file_path (str): Path to the checkpoint file.
 
         Returns:
@@ -763,4 +913,4 @@ class Deep_Clustering_Trainer(Trainer):
         """
 
         checkpoint = torch.load(file_path, weights_only=True)
-        model.load_state_dict(checkpoint['model_state_dict'])
+        self.models.load_state_dict(checkpoint['model_state_dict'])
