@@ -278,6 +278,11 @@ def get_trainer(
         models['augs'] = side_networks.get_augmentations(
             **trainer_config['augmentations'], type = approach_config['augs_type'])
 
+        if approach_config['large_augs']:
+            
+            models['large_augs'] = side_networks.get_augmentations(**trainer_config['large_augmentations'], type = 'large_augs')
+            
+
         if approach_config['clusters_loss']:
             
             mlp_cluster = side_networks.Mlp(**mlp_head_config, apply_softmax = True)
@@ -286,11 +291,20 @@ def get_trainer(
         
 
         if approach_config['augs_type'] == 'learnable':
-            optimzers['augs_optimizer'] = get_optimizer(
-                models['augs'],
-                trainer_config['augs_optimizer']['name'],
-                trainer_config['augs_optimizer']['config']
-            )
+            
+            if approach_config['large_augs']:
+                
+                optimzers['augs_optimizer'] = get_optimizer(
+                            nn.ModuleList([models['augs'], models['large_augs']]),
+                            trainer_config['augs_optimizer']['name'],
+                            trainer_config['augs_optimizer']['config'])
+            else:
+                
+                optimzers['augs_optimizer'] = get_optimizer(
+                    models['augs'],
+                    trainer_config['augs_optimizer']['name'],
+                    trainer_config['augs_optimizer']['config']
+                )
 
         trainer = SIM_CLR_Trainer(
             optimizers = optimzers,

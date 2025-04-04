@@ -140,6 +140,7 @@ class Mlp(nn.Module):
         self.ln2 = nn.Linear(in_features = in_features, out_features = out_features)
         self.apply_softmax = apply_softmax
         self.softmax = nn.Softmax()
+        
     def forward(self, x):
 
         out = self.ln2(self.relu(self.ln1(x)))
@@ -147,7 +148,10 @@ class Mlp(nn.Module):
             out = self.softmax(out)
         return out
 
-def get_augmentations(viewmaker_config: dict, type:str ='learnable', dims:int =1):
+def get_augmentations(viewmaker_config: dict, type:str ='learnable', dims:int = 1):
+
+    if type == 'large_augs':
+        return Viewmaker_1D(**viewmaker_config)
     
     if type == 'learnable' and dims == 1:
         

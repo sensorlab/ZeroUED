@@ -14,7 +14,6 @@ class Simple_CNN_1D(nn.Module):
     name = "Simple_CNN_1D"
 
     
-    
     def __init__(
         self, 
         layers_output_sizes:list=[16, 32, 64, 128], 
@@ -152,6 +151,15 @@ class Simple_CNN_1D(nn.Module):
             ]
         )
         return nn.ModuleList(layers)
+
+    def first_part(self, x):
+        x = self.feature_layers[0](x)
+        return x
+        
+    def second_part(self, x):
+        for i in range(1, len(self.feature_layers)):
+            x = self.feature_layers[i](x)
+        return x
         
     def forward(self, x, large_aug = None, aug_index = None):
         features = x
