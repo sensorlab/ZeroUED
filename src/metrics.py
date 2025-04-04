@@ -134,10 +134,7 @@ def cluster_features(train_features, test_features, clusters_num):
 
 
 def clusters_metrics(train_features, test_features, clusters_num, prefix):
-
-    """
     
-    """
     train_features,\
     test_features,\
     train_clusters,\
