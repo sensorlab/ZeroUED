@@ -424,7 +424,7 @@ class AE_Trainer(Trainer):
     """
     
     def __init__(self, models: nn.ModuleDict, optimizers: dict, 
-                noise_std: float = 0, num_epochs = 200, device = 'gpu'):
+                noise_std: float = 0, num_epochs = 200, device = 'gpu', distance_loss = False, clusters_update_interval = 4, n_clusters = 40):
         """
         Args:
            noise_std (float): Amount of normal noise applied to the signal.
@@ -439,6 +439,51 @@ class AE_Trainer(Trainer):
         self.num_epochs = num_epochs
         self.num_epochs = num_epochs
         self.device = device
+        self.clusters_centers = None
+        self.clusters_update_interval = clusters_update_interval
+        self.n_clusters = n_clusters
+        self.distance_loss = False
+        self.cur_counter = 0
+
+
+    def _update_clusters(self, train_loader):
+        
+        train_features = self.get_features(train_loader)
+        
+        pca = PCA(20)
+        
+        train_features_reduced = pca.fit_transform(train_features)
+
+        kmeans = KMeans(self.n_clusters)
+        
+        self.clusters_centers = torch.tensor(kmeans.cluster_centers_)
+
+    def distance_loss(features):
+
+        """
+        H. Zhou, J. Bai, Y. Wang, J. Ren, X. Yang, and L. Jiao, “Deep radio
+        signal clustering with interpretability analysis based on saliency map" 2023
+        
+        Algorithm 1
+        """
+        
+        self.clusters_centres = self.clusters_centres.to(features.device)
+        
+        distances = torch.zeros((self.clusters_centres.shape[0], features.shape[0]), device = features.device)
+
+        for i in range(clusters_centres):
+            distances[i] = ((features - self.clusters_centres[i])**2).sum(axis=0)
+            
+        min_distances = distances.min(axis=0).detach()
+        
+        exp_shifted_distances = torch.exp(-(distances - min_distances))
+        
+        exp_shifted_distances_sums = exp_shifted_distances.sum(axis = 1)
+        
+        weighted_distances = distances * exp_shifted_distances / exp_shifted_distances_sums
+        
+        return weighted_distances.mean()
+        
         
 
     def train_epoch(self, train_loader, scheduler: torch.optim.lr_scheduler._LRScheduler = None) -> float:
@@ -462,6 +507,12 @@ class AE_Trainer(Trainer):
         c = 0
 
         train_loader.dataset.return_indices = False
+
+        if self.distance_loss and self.cur_counter % self.clusters_update_interval == 0:
+            self._update_clusters(train_loader)
+            self.clusters_update_interval = 0
+            
+        self.clusters_update_interval += 1
         
         for inputs, target in train_loader:
 
@@ -472,9 +523,14 @@ class AE_Trainer(Trainer):
             # Apply noise to inputs
             x = (inputs + torch.randn(inputs.shape, device=inputs.device) * self.noise_std) / (1 + self.noise_std)
 
-            _, reconstructed = model(x)
+            features, reconstructed = model(x)
+
+            features = features.view(features.shape[0], -1)
 
             loss = torch.mean((reconstructed - inputs)**2)
+
+            if self.distance_loss:
+               loss += self.distance_loss(features) 
 
             loss.backward()
             optimizer.step()

@@ -126,7 +126,6 @@ def evauate_config(
             )
             
             for epoch in range(trainer.num_epochs):
-                s
                 loss = trainer.train_epoch(train_loader)
 
                 if epoch % report_interval == 0:
