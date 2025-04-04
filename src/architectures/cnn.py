@@ -4,8 +4,16 @@ import numpy as np
 from typing import Tuple
 
 class Simple_CNN_1D(nn.Module):
+
+    """
+    Simple 1D CNN without resudial connections. 
+
+    Like in L. Milosheski, M. Mohorčič and C. Fortuna, "Spectrum Sensing With Deep Clustering: Label-Free Radio Access Technology Recognition," in IEEE Open Journal of the Communications Society, vol. 5, pp. 4746-4763, 2024, doi: 10.1109/OJCOMS.2024.3436601
+    """
     
     name = "Simple_CNN_1D"
+
+    
     
     def __init__(
         self, 
@@ -158,6 +166,10 @@ class Simple_CNN_1D(nn.Module):
     
     
 class AE_CNN_1D(nn.Module):
+
+    """
+    AE like in Like in L. Milosheski, M. Mohorčič and C. Fortuna, "Spectrum Sensing With Deep Clustering: Label-Free Radio Access Technology Recognition," in IEEE Open Journal of the Communications Society, vol. 5, pp. 4746-4763, 2024, doi: 10.1109/OJCOMS.2024.3436601. 
+    """
     
     name = "AE_CNN_1D"
     
