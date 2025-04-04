@@ -377,7 +377,7 @@ class SIM_CLR_Trainer(Trainer):
             supervised_metrics_porbas = metrics.get_supervised_metrics_probas(
                 train_probas, test_probas, targets, clusters_numbers)
             
-        all_metics = supervised_metrics_features | supervised_metrics_features
+        all_metics = supervised_metrics_features | unsupervised_metrics_features
         
         if self.clusters_loss:
            
@@ -940,7 +940,7 @@ class Deep_Clustering_Trainer(Trainer):
                 train_probas, test_probas, targets, clusters_numbers)
 
 
-        all_metics = supervised_metrics_features | supervised_metrics_features | supervised_metrics_porbas
+        all_metics = supervised_metrics_features | unsupervised_metrics_features | supervised_metrics_porbas
 
         return all_metics
 
