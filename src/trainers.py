@@ -361,8 +361,19 @@ class SIM_CLR_Trainer(Trainer):
         train_features, test_features = self.get_features(train_loader), self.get_features(test_loader)
 
 
+        test_devices = []
+        for b, devices in test_loader:
+            test_devices.append(devices)
+        test_devices = torch.cat(test_devices).numpy()
+
+        train_devices = []
+        for b, devices in train_loader:
+            train_devices.append(devices)
+        train_devices = torch.cat(train_devices).numpy()
+
         supervised_metrics_features = metrics.get_supervised_metrics_features(
-            train_features, test_features, targets, clusters_numbers = clusters_numbers
+            train_features, test_features, targets, clusters_numbers = clusters_numbers,
+            test_devices, train_devices
         )
 
         unsupervised_metrics_features = metrics.get_unsupervised_metrics_features(
@@ -576,8 +587,19 @@ class AE_Trainer(Trainer):
         train_features, test_features = self.get_features(train_loader), self.get_features(test_loader)
 
 
+        test_devices = []
+        for b, devices in test_loader:
+            test_devices.append(devices)
+        test_devices = torch.cat(test_devices).numpy()
+
+        train_devices = []
+        for b, devices in train_loader:
+            train_devices.append(devices)
+        train_devices = torch.cat(train_devices).numpy()
+
         supervised_metrics_features = metrics.get_supervised_metrics_features(
-            train_features, test_features, targets, clusters_numbers = clusters_numbers
+            train_features, test_features, targets, clusters_numbers = clusters_numbers,
+            test_devices, train_devices
         )
 
         unsupervised_metrics_features = metrics.get_unsupervised_metrics_features(
@@ -692,8 +714,19 @@ class PCA_Trainer(Trainer):
         train_features, test_features = self.get_features(train_loader), self.get_features(test_loader)
 
 
+        test_devices = []
+        for b, devices in test_loader:
+            test_devices.append(devices)
+        test_devices = torch.cat(test_devices).numpy()
+
+        train_devices = []
+        for b, devices in train_loader:
+            train_devices.append(devices)
+        train_devices = torch.cat(train_devices).numpy()
+
         supervised_metrics_features = metrics.get_supervised_metrics_features(
-            train_features, test_features, targets, clusters_numbers = clusters_numbers
+            train_features, test_features, targets, clusters_numbers = clusters_numbers,
+            test_devices, train_devices
         )
 
         unsupervised_metrics_features = metrics.get_unsupervised_metrics_features(
@@ -924,9 +957,19 @@ class Deep_Clustering_Trainer(Trainer):
         
         train_features, test_features = self.get_features(train_loader), self.get_features(test_loader)
 
+        test_devices = []
+        for b, devices in test_loader:
+            test_devices.append(devices)
+        test_devices = torch.cat(test_devices).numpy()
+
+        train_devices = []
+        for b, devices in train_loader:
+            train_devices.append(devices)
+        train_devices = torch.cat(train_devices).numpy()
 
         supervised_metrics_features = metrics.get_supervised_metrics_features(
-            train_features, test_features, targets, clusters_numbers = clusters_numbers
+            train_features, test_features, targets, clusters_numbers = clusters_numbers,
+            test_devices, train_devices
         )
 
         unsupervised_metrics_features = metrics.get_unsupervised_metrics_features(

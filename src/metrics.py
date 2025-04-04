@@ -2,6 +2,7 @@ import torch
 import numpy as np
 from sklearn.metrics import roc_auc_score, f1_score, precision_score, recall_score,  accuracy_score
 from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
+from sklearn.metrics import adjusted_mutual_info_score, adjusted_rand_score, homogeneity_score, completeness_score
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 
@@ -163,10 +164,22 @@ def clusters_metrics(train_features, test_features, clusters_num, prefix):
     return metrics
     
     
-def get_supervised_metrics_features(train_features, test_features, targets, clusters_numbers):
+def get_supervised_metrics_features(train_features, test_features, targets, clusters_numbers, test_devices, train_devices):
     all_metrics = {}
     
     for clusters_number in clusters_numbers:
+
+        _, _, train_clusters, test_clusters, _ = cluster_features(train_features, test_features, clusters_number)
+
+        clusters_super_metrics = {
+            f"{clusters_number}_nmi": adjusted_mutual_info_score(test_devices, test_clusters),
+            f"{clusters_number}_ari": adjusted_rand_score(test_devices, test_clusters),
+            f"{clusters_number}_homogeneity": homogeneity_score(test_devices, test_clusters),
+            f"{clusters_number}_completeness_score": completeness_score(test_devices, test_clusters),
+            
+        }
+
+        
         scores = get_scores(
             train_features, 
             test_features, 
@@ -176,7 +189,7 @@ def get_supervised_metrics_features(train_features, test_features, targets, clus
 
         scores = 1 - scores
         
-        all_metrics = all_metrics | get_metrics(scores, targets, 0.95, clusters_number)
+        all_metrics = all_metrics | get_metrics(scores, targets, 0.95, clusters_number) || clusters_super_metrics
     
     return all_metrics
 
