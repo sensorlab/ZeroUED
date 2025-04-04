@@ -19,9 +19,6 @@ import os
 import json
 import copy
 
-
-DEVICE = 'AUTO'
-
 DATASETS_DICT = {
     
     'WiSig': WiSig_Dataset,
