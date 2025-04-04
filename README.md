@@ -21,3 +21,7 @@ We have choosen three datasets for evaluations:
   - WiSig
   - Lora
 
+# How to start
+
+1. Download the data. For example https://cores.ee.ucla.edu/downloads/datasets/wisig/#/downloads
+2. Open evaluations.ipynb and specify the configs, login to wandb, run the experiments
