@@ -14,7 +14,7 @@ Evaluated approaches:
   - Deep Custering
   - Classical Sim CLR
   - Viewmaker Sim CLR
-  - Viewmaker Sim CLR (ours)
+  - Viewmaker Sim CLR Large Augs(ours)
 
 We have choosen three datasets for evaluations:
   - Drones Dataset
