@@ -189,7 +189,7 @@ def get_supervised_metrics_features(train_features, test_features, targets, clus
 
         scores = 1 - scores
         
-        all_metrics = all_metrics | get_metrics(scores, targets, 0.95, clusters_number) || clusters_super_metrics
+        all_metrics = all_metrics | get_metrics(scores, targets, 0.95, clusters_number) | clusters_super_metrics
     
     return all_metrics
 

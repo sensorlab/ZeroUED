@@ -217,20 +217,25 @@ class Viewmaker_1D(nn.Module):
         super(Viewmaker_1D, self).__init__()
 
         self.noise_part = noise_part
-        self.conv1 = nn.Conv1d(channels, channels, kernel_size=3, padding='same')
+        self.conv1 = nn.Conv1d(channels+1, channels+1, kernel_size=3, padding='same')
         self.relu = nn.ReLU()
-        self.conv2 =  nn.Conv1d(channels, channels, kernel_size=3, padding='same')
-        self.conv3 =  nn.Conv1d(channels, channels, kernel_size=3, padding='same')
-        self.bn1 = nn.BatchNorm1d(channels)
-        self.bn2 = nn.BatchNorm1d(channels)
+        self.conv2 =  nn.Conv1d(channels+2, channels+2, kernel_size=3, padding='same')
+        self.conv3 =  nn.Conv1d(channels+3, channels, kernel_size=3, padding='same')
+        self.bn1 = nn.BatchNorm1d(channels+1)
+        self.bn2 = nn.BatchNorm1d(channels+2)
         self.bn3 = nn.BatchNorm1d(channels)
         self.epsilon = epsilon
 
     def forward(self, x):
         inp = x
 
-        noise = torch.randn(x.shape, device = x.device, dtype = torch.float32)
-        x = x + noise * x.norm() / (noise.norm() + 1 + 1e-5) * self.noise_part
+        noise_shape = (x.shape[0], 1, x.shape[2])
+        noise = torch.rand(noise_shape, device = x.device, dtype = torch.float32)
+        
+        x = torch.cat(
+            [x, noise],
+            axis = 1
+        )
         
         #x = (x + torch.randn(x.shape, device = x.device, dtype = torch.float32) * self.noise_std) / (1+self.noise_std)
         
@@ -238,9 +243,25 @@ class Viewmaker_1D(nn.Module):
         x = self.relu(x)
         x = self.bn1(x)
 
+        noise_shape = (x.shape[0], 1, x.shape[2])
+        noise = torch.rand(noise_shape, device = x.device, dtype = torch.float32)
+        
+        x = torch.cat(
+            [x, noise],
+            axis = 1
+        )
+
         x = self.conv2(x)
         x = self.relu(x)
         x = self.bn2(x)
+
+        noise_shape = (x.shape[0], 1, x.shape[2])
+        noise = torch.rand(noise_shape, device = x.device, dtype = torch.float32)
+        
+        x = torch.cat(
+            [x, noise],
+            axis = 1
+        )
 
         x = self.conv3(x)
         x = self.relu(x)

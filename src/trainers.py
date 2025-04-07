@@ -372,13 +372,11 @@ class SIM_CLR_Trainer(Trainer):
         train_devices = torch.cat(train_devices).numpy()
 
         supervised_metrics_features = metrics.get_supervised_metrics_features(
-            train_features, test_features, targets, clusters_numbers = clusters_numbers,
-            test_devices, train_devices
-        )
+            train_features, test_features, targets, clusters_numbers,
+            test_devices, train_devices)
 
         unsupervised_metrics_features = metrics.get_unsupervised_metrics_features(
-            train_features, test_features, clusters_numbers = clusters_numbers
-        )
+            train_features, test_features, clusters_numbers)
         
         if self.clusters_loss:
             
@@ -598,13 +596,11 @@ class AE_Trainer(Trainer):
         train_devices = torch.cat(train_devices).numpy()
 
         supervised_metrics_features = metrics.get_supervised_metrics_features(
-            train_features, test_features, targets, clusters_numbers = clusters_numbers,
-            test_devices, train_devices
-        )
+            train_features, test_features, targets, clusters_numbers,
+            test_devices, train_devices)
 
         unsupervised_metrics_features = metrics.get_unsupervised_metrics_features(
-            train_features, test_features, clusters_numbers = clusters_numbers
-        )
+            train_features, test_features, clusters_numbers)
             
         all_metics = supervised_metrics_features | unsupervised_metrics_features
 
@@ -725,13 +721,11 @@ class PCA_Trainer(Trainer):
         train_devices = torch.cat(train_devices).numpy()
 
         supervised_metrics_features = metrics.get_supervised_metrics_features(
-            train_features, test_features, targets, clusters_numbers = clusters_numbers,
-            test_devices, train_devices
-        )
+            train_features, test_features, targets, clusters_numbers,
+            test_devices, train_devices)
 
         unsupervised_metrics_features = metrics.get_unsupervised_metrics_features(
-            train_features, test_features, clusters_numbers = clusters_numbers
-        )
+            train_features, test_features, clusters_numbers)
             
         all_metics = supervised_metrics_features | unsupervised_metrics_features
 
@@ -968,13 +962,11 @@ class Deep_Clustering_Trainer(Trainer):
         train_devices = torch.cat(train_devices).numpy()
 
         supervised_metrics_features = metrics.get_supervised_metrics_features(
-            train_features, test_features, targets, clusters_numbers = clusters_numbers,
-            test_devices, train_devices
-        )
+            train_features, test_features, targets, clusters_numbers,
+            test_devices, train_devices)
 
         unsupervised_metrics_features = metrics.get_unsupervised_metrics_features(
-            train_features, test_features, clusters_numbers = clusters_numbers
-        )
+            train_features, test_features, clusters_numbers)
 
         train_probas, test_probas = self.get_features(train_loader, type = 'scores'),\
                 self.get_features(test_loader, type = 'scores')
