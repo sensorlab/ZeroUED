@@ -7,16 +7,16 @@ Paper link: -
 
 # Background
 
-In this paper, we evaluate approaches for unknown radio-emitter detection task across different approaches and propose our own approach. 
+In this paper, we evaluate different approaches to the unknown radio-emitter detection task and propose our own approach. 
 
 Evaluated approaches:
   - Auto Encoders
-  - Deep Custering
+  - Deep Clustering
   - Classical Sim CLR
   - Viewmaker Sim CLR
   - Viewmaker Sim CLR Large Augs(ours)
 
-We have choosen three datasets for evaluations:
+We have chosen three datasets for evaluation:
   - Drones Dataset
   - WiSig
   - Lora
