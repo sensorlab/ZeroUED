@@ -89,6 +89,7 @@ class Autoencoder(nn.Module):
         self.decoder = Decoder(bottleneck_size, hidden_size, input_size)
 
     def forward(self, x):
+        x = x.reshape(x.shape[0], -1)
         x = self.encoder(x)
         features = x
         x = self.decoder(x)

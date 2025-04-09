@@ -10,6 +10,7 @@ from sklearn.decomposition import PCA
 from src.architectures.cnn import Simple_CNN_1D, AE_CNN_1D
 from src.architectures.transformers import TS_Transformer
 from src.architectures.resnet2d import ResNet
+from src.architectures.kan import Autoencoder as KANS_AE
 from src.trainers import SIM_CLR_Trainer, Deep_Clustering_Trainer, AE_Trainer, PCA_Trainer
 from src.datasets import DronesDataset, WiSig_Dataset, LoRaDataset
 from src.architectures import side_networks
