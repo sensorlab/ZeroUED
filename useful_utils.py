@@ -9,10 +9,14 @@ from sklearn.decomposition import PCA
 
 from src.architectures.cnn import Simple_CNN_1D, AE_CNN_1D
 from src.architectures.transformers import TS_Transformer
-from src.architectures.resnet2d import ResNet
+from src.architectures.cnn_lstm import CNN_LSTM
+from src.architectures.cnn_transformer import CNN_TRANSFORMER
 from src.architectures.kan import Autoencoder as KANS_AE
+from src.architectures.resnet1d import ResNet1D
+from src.architectures.vit import Vit_14
 from src.trainers import SIM_CLR_Trainer, Deep_Clustering_Trainer, AE_Trainer, PCA_Trainer
 from src.datasets import DronesDataset, WiSig_Dataset, LoRaDataset
+from src.architectures.resnet2d import resnet18
 from src.architectures import side_networks
 from matplotlib import pyplot as plt
 import wandb
@@ -245,6 +249,14 @@ def get_trainer(
         
         feature_extractor = ResNet_1D(**feature_extractor_config)
 
+    if feature_extractor_name == 'CNN_TRANSFORMER':
+
+        feature_extractor = CNN_TRANSFORMER(**feature_extractor_config)
+
+    if feature_extractor_name == 'ResNet2d':
+        
+        feature_extractor = resnet18(**feature_extractor_config)
+
     if feature_extractor_name == 'AE_KANS':
         
         feature_extractor = KANS_AE(**feature_extractor_config)
@@ -253,6 +265,16 @@ def get_trainer(
         
         feature_extractor = AE_CNN_1D(**feature_extractor_config)
 
+    if feature_extractor_name == 'CNN_LSTM':
+
+        feature_extractor = CNN_LSTM(**feature_extractor_config)
+
+    if feature_extractor_name == 'ResNet1D':
+
+        feature_extractor = ResNet1D(**feature_extractor_config)
+        
+    if feature_extractor_name == 'Vit':
+        feature_extractor = Vit_14(**feature_extractor_config)
     
     main_oprimizer_name =   trainer_config['main_optimizer']['name']
     main_optimizer_config = trainer_config['main_optimizer']['config']

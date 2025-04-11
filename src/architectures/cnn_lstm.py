@@ -3,41 +3,34 @@ import torch
 import numpy as np
 from typing import Tuple
 from src.architectures.cnn import Simple_CNN_1D
-from src.architectures.transformers import TS_Transformer
-
-
-from torch import nn
-import torch
-import numpy as np
-from typing import Tuple
-from src.architectures.cnn import Simple_CNN_1D
 
 
 
 
 
-class CNN_TRANSFORMER(nn.Module):
+class CNN_LSTM(nn.Module):
 
-    name = "CNN_TRASNFORMER"
+    name = "TS_CNN_Transformer"
 
     def __init__(
         self,  
-        transformer_config,
+        lstm_config,
         cnn_config, 
         features_size,
         n_classes = 10
     ):
-        super(CNN_TRANSFORMER, self).__init__()
+        super(CNN_LSTM, self).__init__()
 
         self.cnn_config = cnn_config
 
-        self.transformer_config = transformer_config
+        self.lstm_config = lstm_config
 
         self.in_channels = self.cnn_config['in_channels']
         
         self.features_size_cnn = self.cnn_config['features_size']
-        self.features_size_transformer = self.transformer_config['features_size']
-
+        self.features_size_lstm = self.lstm_config['hidden_size']
+        
+        self.lstm_input_size = self.lstm_config['input_size']
 
         self.conv1 = nn.Conv1d(
                 in_channels=self.in_channels,
@@ -59,12 +52,12 @@ class CNN_TRANSFORMER(nn.Module):
 
         
         self.cnn = Simple_CNN_1D(**cnn_config)
-        self.transformer = TS_Transformer(**transformer_config)
+        self.lstm = nn.LSTM(**lstm_config)
 
         self.features_size = features_size
 
         self.combiner = nn.Linear(
-            self.features_size_cnn + self.features_size_transformer,
+            self.features_size_cnn + self.features_size_lstm,
             self.features_size
         )
         
@@ -85,10 +78,19 @@ class CNN_TRANSFORMER(nn.Module):
         
         x = self.cnn.second_part(x)
 
-        x_transformer = self.tmp
-        x_transformer,_ = self.transformer(x_transformer)
+        x_lstm = self.tmp
+        x_lstm = x_lstm.permute(0,1,2)
+        
+        x_lstm = x_lstm.reshape(
+            x_lstm.shape[0], 
+            -1, self.lstm_input_size
+        )
+        
+        x_lstm,_ = self.lstm(x_lstm)
+        
+        x_lstm = x_lstm.mean(1)
 
-        features = self.combiner(torch.cat([x, x_transformer], dim = 1))
+        features = self.combiner(torch.cat([x, x_lstm], dim = 1))
         
         return features
 
@@ -98,11 +100,20 @@ class CNN_TRANSFORMER(nn.Module):
         
         x_cnn,_ = self.cnn(x)
 
-        x_transformer,_ = self.transformer(x)
-    
-        features = self.combiner(torch.cat([x_cnn, x_transformer], dim = 1))
+        x = x.permute(0,1,2)
+        
+        x = x.reshape(
+            x.shape[0], 
+            -1, self.lstm_input_size
+        )
+
+        
+        x_lstm,_ = self.lstm(x)
+
+        x_lstm = x_lstm.mean(1)
+
+        features = self.combiner(torch.cat([x_cnn, x_lstm], dim = 1))
 
         return features, self.classif_head(features)
-
 
         

@@ -15,7 +15,8 @@ class TS_Transformer(nn.Module):
         token_size = 10,
         num_layers = 3,
         num_heads = 8,
-        features_size:int=100
+        features_size:int=100,
+        n_classes = 10
     ):
         super(TS_Transformer, self).__init__()
 
@@ -27,6 +28,7 @@ class TS_Transformer(nn.Module):
         self.features_size = features_size
         self.hidden_size = self.in_channels * self.token_size
         self.num_tokens = self.input_signal_length // self.token_size
+        self.n_classes = n_classes
 
         self.first_embeding = nn.Linear(self.hidden_size, self.hidden_size)
 
@@ -34,6 +36,8 @@ class TS_Transformer(nn.Module):
         self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=self.num_layers)
 
         self.final_mlp = nn.Linear(self.hidden_size, self.features_size)
+
+        self.classification_head = nn.Linear(self.features_size, self.n_classes)
 
     def forward(self, x):
 
@@ -60,7 +64,7 @@ class TS_Transformer(nn.Module):
         # (b_s, hidden_size)
         x = self.final_mlp(x[0])
 
-        return x, -1
+        return x, self.classification_head(x)
 
         
 

@@ -534,9 +534,13 @@ class AE_Trainer(Trainer):
 
             features, reconstructed = model(x)
 
+            b_s = features.shape[0]
+
             features = features.view(features.shape[0], -1)
 
-            loss = torch.mean((reconstructed - inputs)**2)
+            loss = torch.mean(
+                (reconstructed.reshape(b_s, -1) - inputs.reshape(b_s, -1))**2
+            )
 
             if self.distance_loss:
                loss += self.distance_loss(features) 
@@ -863,6 +867,8 @@ class Deep_Clustering_Trainer(Trainer):
         else:
 
             return torch.cat(features_list)
+
+        loader.dataset.return_indices = False
         
 
     def _update_labels(self, train_loader: torch.utils.data.DataLoader):
@@ -952,11 +958,14 @@ class Deep_Clustering_Trainer(Trainer):
         train_features, test_features = self.get_features(train_loader), self.get_features(test_loader)
 
         test_devices = []
+
+        test_loader.dataset.return_indices = False
         for b, devices in test_loader:
             test_devices.append(devices)
         test_devices = torch.cat(test_devices).numpy()
 
         train_devices = []
+        train_loader.dataset.return_indices = False
         for b, devices in train_loader:
             train_devices.append(devices)
         train_devices = torch.cat(train_devices).numpy()
