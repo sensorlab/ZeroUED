@@ -213,12 +213,14 @@ class UpsampleConvLayer(torch.nn.Module):
         return out
 
 class Viewmaker_1D(nn.Module):
+    """
+    Our version of viewmaker for 1D input
+    """
     def __init__(self, channels, noise_part=0, epsilon = 0.1):
         super(Viewmaker_1D, self).__init__()
-
         self.noise_part = noise_part
-        self.conv1 = nn.Conv1d(channels+1, channels+1, kernel_size=3, padding='same')
         self.relu = nn.ReLU()
+        self.conv1 = nn.Conv1d(channels+1, channels+1, kernel_size=3, padding='same')
         self.conv2 =  nn.Conv1d(channels+2, channels+2, kernel_size=3, padding='same')
         self.conv3 =  nn.Conv1d(channels+3, channels, kernel_size=3, padding='same')
         self.bn1 = nn.BatchNorm1d(channels+1)
@@ -231,13 +233,10 @@ class Viewmaker_1D(nn.Module):
 
         noise_shape = (x.shape[0], 1, x.shape[2])
         noise = torch.rand(noise_shape, device = x.device, dtype = torch.float32)
-        
         x = torch.cat(
             [x, noise],
             axis = 1
         )
-        
-        #x = (x + torch.randn(x.shape, device = x.device, dtype = torch.float32) * self.noise_std) / (1+self.noise_std)
         
         x = self.conv1(x)
         x = self.relu(x)
@@ -245,7 +244,6 @@ class Viewmaker_1D(nn.Module):
 
         noise_shape = (x.shape[0], 1, x.shape[2])
         noise = torch.rand(noise_shape, device = x.device, dtype = torch.float32)
-        
         x = torch.cat(
             [x, noise],
             axis = 1
@@ -257,7 +255,6 @@ class Viewmaker_1D(nn.Module):
 
         noise_shape = (x.shape[0], 1, x.shape[2])
         noise = torch.rand(noise_shape, device = x.device, dtype = torch.float32)
-        
         x = torch.cat(
             [x, noise],
             axis = 1
@@ -267,9 +264,7 @@ class Viewmaker_1D(nn.Module):
         x = self.relu(x)
         x = self.bn3(x)
 
-        norm = inp.norm(p =1) / (x.norm(p = 1) + 0.001)
-
-        
+        norm = inp.norm(p=1) / (x.norm(p=1) + 0.001)
         x = self.epsilon * x / (norm + 1e-8)
         
         return (x + inp) / (1 + self.epsilon)

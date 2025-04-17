@@ -29,39 +29,23 @@ class TS_Transformer(nn.Module):
         self.hidden_size = self.in_channels * self.token_size
         self.num_tokens = self.input_signal_length // self.token_size
         self.n_classes = n_classes
-
         self.first_embeding = nn.Linear(self.hidden_size, self.hidden_size)
-
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=self.hidden_size, nhead=self.num_heads)
         self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=self.num_layers)
-
         self.final_mlp = nn.Linear(self.hidden_size, self.features_size)
-
         self.classification_head = nn.Linear(self.features_size, self.n_classes)
 
     def forward(self, x):
-
-        # transform to hidden, init shape = (b_s, channels, length)
-
-        # (b_s, length, channels)
         x = x.swapaxes(1,2)
-
-        # (b_s, num_tokens, hidden_size)
         x = x.reshape(x.shape[0], self.num_tokens, -1)
-
-        # (num_tokens, b_s, hidden_size)
         x = x.swapaxes(0,1)
-
+        
         x = self.first_embeding(x)
-
+        
         cls_token = torch.zeros(x[0].shape, device=x.device)
-
-        # (num_tokens + 1, b_s, hidden_size)
         x = torch.cat([x, cls_token[None, :, :]], dim = 0)
 
         x = self.transformer_encoder(x)
-
-        # (b_s, hidden_size)
         x = self.final_mlp(x[0])
 
         return x, self.classification_head(x)

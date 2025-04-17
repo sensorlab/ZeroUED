@@ -1,4 +1,4 @@
-from src.architectures.viewmaker_style_net import Viewmaker, Viewmaker_1D
+from architectures.viewmakers import Viewmaker, Viewmaker_1D
 import torch.nn as nn
 import torch
 import numpy as np
@@ -12,10 +12,8 @@ class Amplifier(nn.Module):
 
     def forward(self, x):
         scale = torch.randn(x.shape, device = x.device) * self.noise_std + 1
-
         x *= scale
-
-        return (x)
+        return x
 
 class Bias(nn.Module):
     
@@ -27,10 +25,8 @@ class Bias(nn.Module):
 
     def forward(self, x):
         bias = torch.randn(1, device = x.device) * self.noise_std
-
         x += bias
-
-        return (x)
+        return x
 
 class Noise(nn.Module):
     
@@ -42,10 +38,8 @@ class Noise(nn.Module):
 
     def forward(self, x):
         noise = torch.randn(x.shape, device = x.device) * self.noise_std
-
         x += noise
-
-        return (x)
+        return x
 
 class Inverse(nn.Module):
     
@@ -56,44 +50,14 @@ class Inverse(nn.Module):
 
     def forward(self, x):
         inverse_indices = [x.shape[-1] - 1 - i for i in range(x.shape[-1])]
-        
         return x[..., inverse_indices]
 
-
-class Mask_Freq(nn.Module):
-    def __init__(self):
-        super(Mask_Freq, self).__init__()
-    
-    def forward(self, x):
-        
-        mask = torch.ones(x.shape, device = x.device)
-        
-        length = x.size(2)
-        freq_num = x.size(1)
-
-        a = np.random.randint(0, freq_num)
-        
-        begin_f = a
-        end_f = min(a + 20,freq_num)
-
-        a = np.random.randint(0, length)
-        b = np.random.randint(0, length)
-        
-        begin_t = a 
-        end_t = min(a + 20,length)
-        
-        mask[...,begin_t:end_t, begin_f:end_f] = 0
-        
-        return x * mask 
-        
     
 class Augmentation_Masked(nn.Module):
     def __init__(self, in_channels, singal_length, aug_module, noise_std = 0, num_bits = 16, prob = 0.5):
-        
         super(Augmentation_Masked, self).__init__()
 
         assert singal_length % num_bits == 0
-
         self.size = in_channels * singal_length
         self.noise_std = noise_std
         self.num_bits = num_bits
@@ -101,8 +65,6 @@ class Augmentation_Masked(nn.Module):
         self.singal_length = singal_length
         self.bit_size = singal_length // num_bits
         self.prob = prob
-
-
         self.layers = nn.ModuleList(
             [   
                 aug_module(in_channels, singal_length // num_bits, noise_std)
@@ -113,18 +75,14 @@ class Augmentation_Masked(nn.Module):
 
     def forward(self, x):
         new_x = torch.zeros(x.shape, device = x.device)
-        
         for i in range(self.num_bits):
-            
             if np.random.choice([0,1], p = [1-self.prob, self.prob]):
-                
                 new_x[...,i * self.bit_size: (i+1) * self.bit_size] =\
                 self.layers[i](
                     x[...,i * self.bit_size: (i+1) * self.bit_size]
                 )
                 
             else:
-                
                 new_x[...,i * self.bit_size: (i+1) * self.bit_size] =\
                     x[...,i * self.bit_size: (i+1) * self.bit_size]
         
@@ -149,16 +107,13 @@ class Mlp(nn.Module):
         return out
 
 def get_augmentations(viewmaker_config: dict, type:str ='learnable', dims:int = 1):
-
     if type == 'large_augs':
         return Viewmaker_1D(**viewmaker_config)
     
     if type == 'learnable' and dims == 1:
-        
         return nn.ModuleList([Viewmaker_1D(**viewmaker_config)])
         
-    if type == 'static':
-
+    if type == 'static' and dims == 1:
         return nn.ModuleList(
             [
                 Augmentation_Masked(**viewmaker_config, aug_module = Noise),

@@ -4,22 +4,16 @@ import numpy as np
 from typing import Tuple
 from src.architectures.cnn import Simple_CNN_1D
 from src.architectures.transformers import TS_Transformer
-
-
 from torch import nn
 import torch
 import numpy as np
 from typing import Tuple
 from src.architectures.cnn import Simple_CNN_1D
 
+class CNN_Transformer(nn.Module):
 
-
-
-
-class CNN_TRANSFORMER(nn.Module):
-
-    name = "CNN_TRASNFORMER"
-
+    name = "CNN_Transformer"
+    
     def __init__(
         self,  
         transformer_config,
@@ -27,24 +21,19 @@ class CNN_TRANSFORMER(nn.Module):
         features_size,
         n_classes = 10
     ):
-        super(CNN_TRANSFORMER, self).__init__()
+        super(CNN_Transformer, self).__init__()
 
         self.cnn_config = cnn_config
-
         self.transformer_config = transformer_config
-
         self.in_channels = self.cnn_config['in_channels']
-        
         self.features_size_cnn = self.cnn_config['features_size']
         self.features_size_transformer = self.transformer_config['features_size']
-
 
         self.conv1 = nn.Conv1d(
                 in_channels=self.in_channels,
                 out_channels=self.in_channels, 
                 kernel_size=13, 
                 padding=6)
-        
         self.bn1 = nn.BatchNorm1d(self.in_channels)
         self.relu1 = nn.ReLU()
 
@@ -53,7 +42,6 @@ class CNN_TRANSFORMER(nn.Module):
                 out_channels=self.in_channels, 
                 kernel_size=13, 
                 padding=6)
-        
         self.bn2 = nn.BatchNorm1d(self.in_channels)
         self.relu2 = nn.ReLU()
 
@@ -62,7 +50,6 @@ class CNN_TRANSFORMER(nn.Module):
         self.transformer = TS_Transformer(**transformer_config)
 
         self.features_size = features_size
-
         self.combiner = nn.Linear(
             self.features_size_cnn + self.features_size_transformer,
             self.features_size
@@ -71,23 +58,20 @@ class CNN_TRANSFORMER(nn.Module):
         self.classif_head = nn.Linear(self.features_size, n_classes)
 
     def first_part(self, x):
-
         x = self.relu1(self.bn1(self.conv1(x)))
         x = self.relu2(self.bn2(self.conv2(x)))
-
+        
         x_cnn_first = self.cnn.first_part(x)
-
         self.tmp = x
-
+        
         return x_cnn_first
 
     def second_part(self, x):
-        
         x = self.cnn.second_part(x)
-
+        
         x_transformer = self.tmp
         x_transformer,_ = self.transformer(x_transformer)
-
+        
         features = self.combiner(torch.cat([x, x_transformer], dim = 1))
         
         return features
@@ -95,9 +79,8 @@ class CNN_TRANSFORMER(nn.Module):
     def forward(self, x):
         x = self.relu1(self.bn1(self.conv1(x)))
         x = self.relu2(self.bn2(self.conv2(x)))
-        
-        x_cnn,_ = self.cnn(x)
 
+        x_cnn,_ = self.cnn(x)
         x_transformer,_ = self.transformer(x)
     
         features = self.combiner(torch.cat([x_cnn, x_transformer], dim = 1))

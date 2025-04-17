@@ -5,12 +5,9 @@ from typing import Tuple
 from src.architectures.cnn import Simple_CNN_1D
 
 
-
-
-
 class CNN_LSTM(nn.Module):
 
-    name = "TS_CNN_Transformer"
+    name = "CNN_LSTM"
 
     def __init__(
         self,  
@@ -22,14 +19,12 @@ class CNN_LSTM(nn.Module):
         super(CNN_LSTM, self).__init__()
 
         self.cnn_config = cnn_config
-
         self.lstm_config = lstm_config
 
         self.in_channels = self.cnn_config['in_channels']
         
         self.features_size_cnn = self.cnn_config['features_size']
         self.features_size_lstm = self.lstm_config['hidden_size']
-        
         self.lstm_input_size = self.lstm_config['input_size']
 
         self.conv1 = nn.Conv1d(
@@ -37,7 +32,6 @@ class CNN_LSTM(nn.Module):
                 out_channels=self.in_channels, 
                 kernel_size=13, 
                 padding=6)
-        
         self.bn1 = nn.BatchNorm1d(self.in_channels)
         self.relu1 = nn.ReLU()
 
@@ -46,7 +40,6 @@ class CNN_LSTM(nn.Module):
                 out_channels=self.in_channels, 
                 kernel_size=13, 
                 padding=6)
-        
         self.bn2 = nn.BatchNorm1d(self.in_channels)
         self.relu2 = nn.ReLU()
 
@@ -64,7 +57,6 @@ class CNN_LSTM(nn.Module):
         self.classif_head = nn.Linear(self.features_size, n_classes)
 
     def first_part(self, x):
-
         x = self.relu1(self.bn1(self.conv1(x)))
         x = self.relu2(self.bn2(self.conv2(x)))
 
@@ -75,7 +67,6 @@ class CNN_LSTM(nn.Module):
         return x_cnn_first
 
     def second_part(self, x):
-        
         x = self.cnn.second_part(x)
 
         x_lstm = self.tmp
@@ -87,7 +78,6 @@ class CNN_LSTM(nn.Module):
         )
         
         x_lstm,_ = self.lstm(x_lstm)
-        
         x_lstm = x_lstm.mean(1)
 
         features = self.combiner(torch.cat([x, x_lstm], dim = 1))
@@ -99,7 +89,6 @@ class CNN_LSTM(nn.Module):
         x = self.relu2(self.bn2(self.conv2(x)))
         
         x_cnn,_ = self.cnn(x)
-
         x = x.permute(0,1,2)
         
         x = x.reshape(
@@ -107,9 +96,7 @@ class CNN_LSTM(nn.Module):
             -1, self.lstm_input_size
         )
 
-        
         x_lstm,_ = self.lstm(x)
-
         x_lstm = x_lstm.mean(1)
 
         features = self.combiner(torch.cat([x_cnn, x_lstm], dim = 1))
