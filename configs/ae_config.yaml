@@ -35,6 +35,7 @@ approach:
     noise_std: 0.1
     device: cuda
     num_epochs: 20
+    distance_loss: [True, False]
   trainer:
     main_optimizer:
       name: Adam
@@ -48,4 +49,3 @@ feature_extractor:
     input_signal_length: 256
     in_channels: 2
     kernel_size_maxpool: 2
-    distance_loss: [True, False]
