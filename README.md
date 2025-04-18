@@ -32,3 +32,6 @@ We have chosen three datasets for evaluation:
    gdown.download('https://drive.google.com/uc?id=1szuns8MhcYocdbipK9t9TM9MLgEMklxk', 'many_sig', quiet=False)
    ```
 6. Run experiemnts from config ```python run_experiments configs/ae_config.yaml ```
+
+# Alternative way to install reqs:
+
