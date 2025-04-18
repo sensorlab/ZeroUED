@@ -33,5 +33,5 @@ We have chosen three datasets for evaluation:
    ```
 6. Run experiemnts from config ```python run_experiments configs/ae_config.yaml ```
 
-# Alternative way to install reqs:
-
+## Alternative way for steps 1-2:
+```pip install -r reqs.txt```
