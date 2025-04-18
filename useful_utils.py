@@ -1,408 +1,223 @@
-import torch
-from torch import nn
-import numpy as np
-from torch.utils.data import DataLoader
-import pywt
-import torchvision
-from torchvision import transforms
-from sklearn.decomposition import PCA
 
-from src.architectures.cnn import Simple_CNN_1D, AE_CNN_1D
-from src.architectures.transformers import TS_Transformer
-from src.architectures.cnn_lstm import CNN_LSTM
-from src.architectures.cnn_transformer import CNN_TRANSFORMER
-from src.architectures.kan import Autoencoder as KANS_AE
-from src.architectures.resnet1d import ResNet1D
-from src.architectures.vit import Vit_14
-from src.trainers import SIM_CLR_Trainer, Deep_Clustering_Trainer, AE_Trainer, PCA_Trainer
-from src.datasets import DronesDataset, WiSig_Dataset, LoRaDataset
-from src.architectures.resnet2d import resnet18
-from src.architectures import side_networks
-from matplotlib import pyplot as plt
-import wandb
 import os
 import json
 import copy
 
-DATASETS_DICT = {
-    
-    'WiSig': WiSig_Dataset,
-    'LoRa': LoRaDataset,
-    'Drones': DronesDataset
-    
+
+import torch
+import numpy as np
+import wandb
+import pywt
+from torch import nn
+from torch.utils.data import DataLoader
+from sklearn.decomposition import PCA
+from matplotlib import pyplot as plt
+from torchvision import transforms
+
+
+from src.datasets import DronesDataset, WiSig_Dataset, LoRaDataset
+from src.architectures import side_networks
+from src.architectures.cnn import Simple_CNN_1D, AE_CNN_1D
+from src.architectures.transformers import TS_Transformer
+from src.architectures.cnn_lstm import CNN_LSTM
+from src.architectures.cnn_transformer import CNN_Transformer
+from src.architectures.kan import Autoencoder as KANS_AE
+from src.architectures.resnet1d import ResNet1D
+from src.architectures.resnet2d import resnet18
+from src.architectures.vit import Vit_14
+from src.trainers import (
+    SIM_CLR_Trainer,
+    Deep_Clustering_Trainer,
+    AE_Trainer,
+    PCA_Trainer,
+)
+
+DATASETS = {"WiSig": WiSig_Dataset, "LoRa": LoRaDataset, "Drones": DronesDataset}
+
+FEATURES_EXCTRACTORS = {
+    "Simple_CNN_1D": Simple_CNN_1D,
+    "ResNet_1D": ResNet1D,
+    "ResNet_2D": resnet18,
+    "CNN_Trasnformer": CNN_Transformer,
+    "AE_KAN": KANS_AE,
+    "AE_CNN_1D": AE_CNN_1D,
+    "CNN_LSTM": CNN_LSTM,
+    "Vit": Vit_14,
 }
 
-def report(metrics, trainer, exp_config, fold_number, iteration, epoch, train_config, test_config):
-
+def report(metrics, trainer, exp_config, fold, iteration, epoch, train_config, test_config):
     """
-    Report to wandb and logs dir
+    Save metrics, configs, and model checkpoints to logs and report to wandb.
     """
-    
-    root = exp_config['logs_dir']
-
-    dataset_name = exp_config['dataset']['name']
-
-    approach_name = exp_config['approach']['name']
-
-    id = exp_config['exp_id']
-
-    features_exctractor_name = exp_config['feature_extractor']['name']
-
     log_dir = os.path.join(
-        root, 
-        f"{id}/{dataset_name}/{fold_number}/{approach_name}/{features_exctractor_name}/{iteration}/{epoch}"
+        exp_config["logs_dir"],
+        f"{exp_config['exp_id']}/{exp_config['dataset']['name']}/{fold}/"
+        f"{exp_config['approach']['name']}/{exp_config['feature_extractor']['name']}/"
+        f"{iteration}/{epoch}"
     )
+    os.makedirs(log_dir, exist_ok=True)
 
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-    
-    trainer.save_checkpoint(log_dir + '/models.pt')
-    
-    with open(log_dir + '/config.json', 'w') as f:
+    trainer.save_checkpoint(os.path.join(log_dir, "models.pt"))
+
+    with open(os.path.join(log_dir, "config.json"), "w") as f:
         json.dump(exp_config, f, indent=4)
-
-    #with open(log_dir + '/train_config.json', 'w') as f:
-    #    json.dump(train_config, f, indent=4)
-
-    #with open(log_dir + '/test_config.json', 'w') as f:
-    #    json.dump(test_config, f, indent=4)
-
-    with open(log_dir + '/metrics.json', 'w') as f:
+    with open(os.path.join(log_dir, "metrics.json"), "w") as f:
         json.dump(metrics, f, indent=4)
-        
-    wandb.log(
-        metrics,
-        step = epoch
-    )
-    
 
-def evauate_config(
-    exp_config: dict
-):
+    wandb.log(metrics, step=epoch)
+    
+def get_optimizer(models, name, config):
+    optimizers = {
+        "Adam": torch.optim.Adam,
+        "SGD": torch.optim.SGD,
+    }
+    return optimizers[name](models.parameters(), **config)
+
+
+def get_data_configs(dataset_config):
     """
-    Train config and report prerfomance
+    Return training and testing config sets along with unknown device IDs for k-fold or static splits.
     """
-    train_configs, test_configs, unknown_devices_folds = get_data_configs(exp_config['dataset']['config'])
+    if "k_fold" in dataset_config:
+        ratio = dataset_config["k_fold"]["ratio"]
+        total_devices = dataset_config["k_fold"]["total_devices"]
+        test_size = total_devices // ratio
 
-    dataset_name = exp_config['dataset']['name']
+        test_devices = tuple(np.arange(total_devices))
+        test_config = copy.deepcopy(dataset_config)
+        test_config.pop("k_fold")
+        test_config["devices"] = test_devices
+        test_configs = [test_config] * ratio
 
-    clusters_numbers = exp_config['evaluation']['clusters_numbers']
+        train_configs = []
+        unknown_devices_folds = []
 
-    dataset_class = DATASETS_DICT[dataset_name]
+        for i in range(ratio):
+            train_devices = tuple(
+                list(np.arange(i * test_size)) + list(np.arange((i + 1) * test_size, total_devices))
+            )
+            unknown_devices = np.arange(i * test_size, (i + 1) * test_size)
+            unknown_devices_folds.append(unknown_devices)
 
-    train_loader_config = exp_config['train_loader']
-    
-    test_loader_config = exp_config['test_loader']
+            train_config = copy.deepcopy(dataset_config)
+            train_config.pop("k_fold")
+            train_config["devices"] = train_devices
+            train_configs.append(train_config)
 
-    num_iterations = exp_config['num_iterations']
+        return train_configs, test_configs, unknown_devices_folds
 
-    starting_iteration = exp_config['starting_iteration']
+    # Static train/test split
+    train_cfg = copy.deepcopy(dataset_config)
+    train_cfg["devices"] = train_cfg.pop("train")
 
-    report_interval = exp_config['report_interval']
-    
-    for fold_number, (train_config, test_config, unknown_devices) in enumerate(
-        zip(train_configs, test_configs, unknown_devices_folds)) :
+    test_cfg = copy.deepcopy(dataset_config)
+    test_cfg["devices"] = test_cfg.pop("test")
 
-        train_dataset = dataset_class(**train_config)
-        
-        test_dataset = dataset_class(**test_config)
+    unknown_devices = [d for d in test_cfg["devices"] if d not in train_cfg["devices"]]
+    return [train_cfg], [test_cfg], [unknown_devices]
 
-        targets = []
+def evauate_config(exp_config: dict):
+    """
+    Train and evaluate models across k-folds or static train/test splits.
+    """
+    train_cfgs, test_cfgs, unknown_folds = get_data_configs(exp_config["dataset"]["config"])
+    dataset_cls = DATASETS[exp_config["dataset"]["name"]]
+    report_interval = exp_config["report_interval"]
 
-        for i in range(len(test_dataset)):
-            _, device = test_dataset[i]
-            targets.append(device in unknown_devices)
+    for fold, (train_cfg, test_cfg, unknown_devices) in enumerate(zip(train_cfgs, test_cfgs, unknown_folds)):
+        train_set = dataset_cls(**train_cfg)
+        test_set = dataset_cls(**test_cfg)
 
-        targets = np.array(targets)
+        targets = np.array([test_set[i][1] in unknown_devices for i in range(len(test_set))])
+        train_loader = DataLoader(train_set, **exp_config["train_loader"])
+        test_loader = DataLoader(test_set, **exp_config["test_loader"])
 
-        train_loader = DataLoader(train_dataset, **train_loader_config)
-
-        test_loader = DataLoader(test_dataset, **test_loader_config)
-
-        for iteration in range(starting_iteration, num_iterations):
-            
+        for iteration in range(exp_config["starting_iteration"], exp_config["num_iterations"]):
             trainer = get_trainer(exp_config)
 
-
             wandb.init(
-                project = f"{dataset_name}_evaluations",
-                config = exp_config | train_config | test_config | {'iteration' : iteration} | {'fold': fold_number},
-                name = f"fold_{fold_number}, iter_{iteration}, approach_{exp_config['approach']['name']}, f_extractor_{exp_config['feature_extractor']['name']}"
+                project=f"{exp_config['dataset']['name']}_evaluations",
+                config={**exp_config, **train_cfg, **test_cfg, "iteration": iteration, "fold": fold},
+                name=f"fold_{fold}, iter_{iteration}, approach_{exp_config['approach']['name']}, f_extractor_{exp_config['feature_extractor']['name']}",
             )
-            
+
             for epoch in range(trainer.num_epochs):
                 loss = trainer.train_epoch(train_loader)
 
                 if epoch % report_interval == 0:
-                    
-                    metrics = trainer.evaluate(
-                        train_loader, test_loader, targets, clusters_numbers = clusters_numbers)
-                    
-                    metrics['loss'] = loss
+                    metrics = trainer.evaluate(test_loader=test_loader, train_loader=train_loader,
+                                               targets=targets, clusters_numbers=exp_config["evaluation"]["clusters_numbers"])
+                    metrics["loss"] = loss
+                    report(metrics, trainer, exp_config, fold, iteration, epoch, train_cfg, test_cfg)
 
-                    report(metrics, trainer, exp_config, fold_number, iteration, epoch, train_config, test_config)
-                    
             wandb.finish()
 
-                    
-                
 
-def get_data_configs(dataset_config):
-
+def get_trainer(exp_config: dict):
     """
-    Obtain lists of train and test configs using cross validation
+    Build and return the trainer object according to the experiment config.
     """
+    approach = exp_config["approach"]["name"]
+    approach_cfg = exp_config["approach"]["config"]
+    trainer_cfg = exp_config["approach"]["trainer"]
 
-    if 'k_fold' in dataset_config.keys():
-        
-        ratio = dataset_config['k_fold']['ratio']
-        
-        total_devices = dataset_config['k_fold']['total_devices']
+    extractor_name = exp_config["feature_extractor"]["name"]
+    extractor_cfg = exp_config["feature_extractor"]["config"]
+    extractor = FEATURES_EXCTRACTORS[extractor_name](**extractor_cfg)
 
-    else:
-        
-        dataset_config_train = copy.deepcopy(dataset_config)
-        dataset_config_train['devices'] = dataset_config_train['train']
-        del dataset_config_train['train']
+    optimizer_name = trainer_cfg["main_optimizer"]["name"]
+    optimizer_cfg = trainer_cfg["main_optimizer"]["config"]
 
-        dataset_config_test = copy.deepcopy(dataset_config)
-        dataset_config_test['devices'] = dataset_config_test['test']
-        del dataset_config_train['test']
+    if approach == "Sim_CLR":
+        mlp = side_networks.Mlp(**trainer_cfg["mlp_head"])
+        models = nn.ModuleDict({"feature_extractor": extractor, "mlp_instance": mlp})
+        optimizers = {"main_optimizer": get_optimizer(models, optimizer_name, optimizer_cfg)}
 
-        unknwn_devices = [
-            i for i in dataset_config_test['devices'] 
-            if not i in dataset_config_train['devices']
-        ]
-
-        return [dataset_config_train], [dataset_config_test], [unknwn_devices]
-
-    test_devices = tuple(np.arange(total_devices))
-    
-    test_config = copy.deepcopy(dataset_config)
-    
-    test_config.pop('k_fold')
-    
-    test_config['devices'] = test_devices
-
-    test_configs = [test_config] * ratio
-
-    train_configs = []
-    
-    moving_part = total_devices // ratio
-
-    unknown_devices_folds = []
-
-    for i in range(ratio):
-        
-        train_devices = tuple(
-            list(np.arange(moving_part * i)) + list(np.arange(moving_part * (i+1), total_devices))
+        models["augs"] = side_networks.get_augmentations(
+            **trainer_cfg["augmentations"], type=approach_cfg["augs_type"]
         )
 
-        unknown_devices = np.arange(moving_part * i, moving_part * (i+1))
+        if approach_cfg.get("large_augs"):
+            models["large_augs"] = side_networks.get_augmentations(
+                **trainer_cfg["large_augmentations"], type="large_augs"
+            )
+            optimizers["large_augs_optimizer"] = get_optimizer(
+                models["large_augs"],
+                trainer_cfg["augs_optimizer"]["name"],
+                trainer_cfg["augs_optimizer"]["config"],
+            )
 
-        unknown_devices_folds.append(unknown_devices)
-        
-        train_config = copy.deepcopy(dataset_config)
-    
-        train_config.pop('k_fold')
+        if approach_cfg.get("clusters_loss"):
+            models["mlp_cluster"] = side_networks.Mlp(**trainer_cfg["mlp_head"], apply_softmax=True)
 
-        train_config['devices'] = train_devices
-        
-        train_configs.append(train_config)
+        return SIM_CLR_Trainer(models=models, optimizers=optimizers, **approach_cfg)
 
-    return train_configs, test_configs, unknown_devices_folds
-    
+    if approach == "Deep Clustering":
+        models = nn.ModuleDict({"feature_extractor": extractor})
+        optimizers = {"main_optimizer": get_optimizer(models, optimizer_name, optimizer_cfg)}
+        return Deep_Clustering_Trainer(models=models, optimizers=optimizers, **approach_cfg)
 
+    if approach == "PCA":
+        return PCA_Trainer(**approach_cfg)
 
-def get_optimizer(models, optimizer_name, optimizer_config):
-    
-    if optimizer_name == 'Adam':
-        optimizer = torch.optim.Adam(models.parameters(), **optimizer_config)
-    
-    if optimizer_name == 'SGD':
-        optimizer = torch.optim.SGD(models.parameters(), **optimizer_config)
-    
-    return optimizer
+    if approach == "AE":
+        models = nn.ModuleDict({"feature_extractor": extractor})
+        optimizers = {"main_optimizer": get_optimizer(models, optimizer_name, optimizer_cfg)}
+        return AE_Trainer(models=models, optimizers=optimizers, **approach_cfg)
 
-
-
-def get_trainer(
-        exp_config : dict
-):
-    """
-    Build trainer object
-    """
-    approach_name =   exp_config['approach']['name']
-    approach_config = exp_config['approach']['config']
-    
-    feature_extractor_name =   exp_config['feature_extractor']['name']
-    feature_extractor_config = exp_config['feature_extractor']['config']
-
-    trainer_config = exp_config['approach']['trainer']
-
-
-    if feature_extractor_name == 'Simple_CNN_1D':
-        
-        feature_extractor = Simple_CNN_1D(**feature_extractor_config)
-    
-    if feature_extractor_name == 'ResNet_1D':
-        
-        feature_extractor = ResNet_1D(**feature_extractor_config)
-
-    if feature_extractor_name == 'CNN_TRANSFORMER':
-
-        feature_extractor = CNN_TRANSFORMER(**feature_extractor_config)
-
-    if feature_extractor_name == 'ResNet2d':
-        
-        feature_extractor = resnet18(**feature_extractor_config)
-
-    if feature_extractor_name == 'AE_KANS':
-        
-        feature_extractor = KANS_AE(**feature_extractor_config)
-
-    if feature_extractor_name == 'AE_CNN_1D':
-        
-        feature_extractor = AE_CNN_1D(**feature_extractor_config)
-
-    if feature_extractor_name == 'CNN_LSTM':
-
-        feature_extractor = CNN_LSTM(**feature_extractor_config)
-
-    if feature_extractor_name == 'ResNet1D':
-
-        feature_extractor = ResNet1D(**feature_extractor_config)
-        
-    if feature_extractor_name == 'Vit':
-        feature_extractor = Vit_14(**feature_extractor_config)
-    
-    main_oprimizer_name =   trainer_config['main_optimizer']['name']
-    main_optimizer_config = trainer_config['main_optimizer']['config']
-    
-    
-    if approach_name == 'Sim_CLR':
-        
-        mlp_head_config = trainer_config['mlp_head']
-
-        mlp_instance = side_networks.Mlp(**mlp_head_config)
-
-        models = nn.ModuleDict({
-                    'feature_extractor': feature_extractor,
-                    'mlp_instance': mlp_instance,
-        })
-
-        main_optimizer = get_optimizer(
-                    models,
-                    main_oprimizer_name,
-                    main_optimizer_config)
-
-        optimzers = {'main_optimizer': main_optimizer}
-
-        models['augs'] = side_networks.get_augmentations(
-            **trainer_config['augmentations'], type = approach_config['augs_type'])
-
-        if approach_config['large_augs']:
-            
-            models['large_augs'] = side_networks.get_augmentations(**trainer_config['large_augmentations'], type = 'large_augs')
-            
-
-        if approach_config['clusters_loss']:
-            
-            mlp_cluster = side_networks.Mlp(**mlp_head_config, apply_softmax = True)
-            
-            models['mlp_cluster'] = mlp_cluster
-        
-
-        if approach_config['augs_type'] == 'learnable':
-            
-            if approach_config['large_augs']:
-                
-                optimzers['augs_optimizer'] = get_optimizer(
-                            nn.ModuleList([models['augs'], models['large_augs']]),
-                            trainer_config['augs_optimizer']['name'],
-                            trainer_config['augs_optimizer']['config'])
-            else:
-                
-                optimzers['augs_optimizer'] = get_optimizer(
-                    models['augs'],
-                    trainer_config['augs_optimizer']['name'],
-                    trainer_config['augs_optimizer']['config']
-                )
-
-        trainer = SIM_CLR_Trainer(
-            optimizers = optimzers,
-            models = models,
-            **approach_config)
-
-    if approach_name == 'Deep Clustering':
-
-        models = nn.ModuleDict({    
-            'feature_extractor': feature_extractor,
-        })
-
-        main_optimizer = get_optimizer(
-                    models,
-                    main_oprimizer_name,
-                    main_optimizer_config
-        )
-
-        optimizers = {'main_optimizer': main_optimizer}
-
-        trainer = Deep_Clustering_Trainer(
-            optimizers = optimizers,
-            models = models,
-            **approach_config)
-
-    if approach_name == 'PCA':
-        
-        pca = PCA(feature_extractor_config)
-        
-        trainer = PCA_Trainer(**approach_config)
-
-    if approach_name == 'AE':
-        
-        models = nn.ModuleDict({    
-            'feature_extractor': feature_extractor,
-        })
-
-        main_optimizer = get_optimizer(
-                    models,
-                    main_oprimizer_name,
-                    main_optimizer_config)
-
-        optimizers = {'main_optimizer': main_optimizer}
-
-        trainer = AE_Trainer(optimizers = optimizers,
-                             models = models,
-                             **approach_config)
-
-    return trainer
 
 def parse_configs(exp_configs):
     """
-    Go through the config and 
-    create all possible combimations of configs with fixed parameters.
+    Expand configs that have parameter sweeps into multiple individual configs.
     """
-    
-    cur_node = exp_configs
-    stack = [cur_node]
+    stack = [exp_configs]
 
-    while len(stack) > 0:
-        cur_node = stack.pop()
-        for child in cur_node.keys():
-            if type(cur_node[child]) == list:
-                values = cur_node[child]
-                configs = []
-                for value in values:
-                    cur_node[child] = value
-                    configs += parse_configs(copy.deepcopy(exp_configs))
-                return configs
-                    
-            if type(cur_node[child]) == dict:
-                stack.append(cur_node[child])
-        
+    while stack:
+        node = stack.pop()
+        for k, v in node.items():
+            if isinstance(v, list):
+                return [parse_configs({**exp_configs, k: val}) for val in v]
+            if isinstance(v, dict):
+                stack.append(v)
+
     return [copy.deepcopy(exp_configs)]
-        
-    
-    
-    
