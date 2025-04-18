@@ -859,7 +859,7 @@ class Deep_Clustering_Trainer(Trainer):
         features_list = []
         ids_list = []
 
-        loader.dataset.return_indices = return_indices
+        loader.dataset.return_indices = True
 
         with torch.no_grad():
             for inputs, _, ids in loader:

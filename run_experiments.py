@@ -29,7 +29,6 @@ def load_yaml_config(config_path):
     
     return config
 
-# Example usage
 if __name__ == "__main__":
 
     if len(sys.argv) < 2:
@@ -37,15 +36,17 @@ if __name__ == "__main__":
         sys.exit(1)
 
     yaml_config_path = sys.argv[1]
-    # YAML example
+    
     try:
         yaml_config = load_yaml_config(yaml_config_path)
         print("YAML Configuration loaded successfully:")
-        configs, params = utils.parse_configs(yaml_config)
-        for config, param in zip(configs, params):
-            config['params_set'] = param
-            utils.evauate_config(config)
-        
         
     except (FileNotFoundError, ValueError) as e:
         print(f"Error loading YAML config: {e}")
+
+    configs, params = utils.parse_configs(yaml_config, '')
+    
+    for config, param in zip(configs, params):
+        config['params_set'] = param
+        utils.evauate_config(config)
+        

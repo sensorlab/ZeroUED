@@ -1,4 +1,4 @@
-from architectures.viewmakers import Viewmaker, Viewmaker_1D
+from src.architectures.viewmakers import Viewmaker, Viewmaker_1D
 import torch.nn as nn
 import torch
 import numpy as np
@@ -120,7 +120,6 @@ def get_augmentations(viewmaker_config: dict, type:str ='learnable', dims:int = 
                 Augmentation_Masked(**viewmaker_config, aug_module = Bias),
                 Augmentation_Masked(**viewmaker_config, aug_module = Amplifier),
                 Augmentation_Masked(**viewmaker_config, aug_module = Inverse),
-                
             ]
         )
         

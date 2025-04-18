@@ -1,8 +1,6 @@
-
 import os
 import json
 import copy
-
 
 import torch
 import numpy as np
@@ -14,18 +12,17 @@ from sklearn.decomposition import PCA
 from matplotlib import pyplot as plt
 from torchvision import transforms
 
-
-from datasets import DronesDataset, WiSig_Dataset, LoRaDataset
-from architectures import side_networks
-from architectures.cnn import Simple_CNN_1D, AE_CNN_1D
-from architectures.transformers import TS_Transformer
-from architectures.cnn_lstm import CNN_LSTM
-from architectures.cnn_transformer import CNN_Transformer
-from architectures.kan import Autoencoder as KANS_AE
-from architectures.resnet1d import ResNet1D
-from architectures.resnet2d import resnet18
-from architectures.vit import Vit_14
-from trainers import (
+from src.datasets import DronesDataset, WiSig_Dataset, LoRaDataset
+from src.architectures import side_networks
+from src.architectures.cnn import Simple_CNN_1D, AE_CNN_1D
+from src.architectures.transformers import TS_Transformer
+from src.architectures.cnn_lstm import CNN_LSTM
+from src.architectures.cnn_transformer import CNN_Transformer
+from src.architectures.kan import Autoencoder as KANS_AE
+from src.architectures.resnet1d import ResNet1D
+from src.architectures.resnet2d import resnet18
+from src.architectures.vit import Vit_14
+from src.trainers import (
     SIM_CLR_Trainer,
     Deep_Clustering_Trainer,
     AE_Trainer,
@@ -219,11 +216,13 @@ def parse_configs(exp_configs, params):
                 next_configs = []
                 next_params = []
                 for val in v:
-                    config, param = parse_configs({**exp_configs, k: val}, params + f"{k}_{v}") 
+                    node[k] = val
+                    cur_config = copy.deepcopy(exp_configs)
+                    config, param = parse_configs(cur_config, params + f"{k}_{v}") 
                     next_configs += config
                     next_params += param
                 return next_configs, next_params
             if isinstance(v, dict):
                 stack.append(v)
 
-    return [copy.deepcopy(exp_configs)], [params]
+    return [exp_configs], [params]
