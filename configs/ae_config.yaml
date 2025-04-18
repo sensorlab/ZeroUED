@@ -10,7 +10,7 @@ dataset:
   config:
     file: many_sig.pkl    # file path for WiSig
     k_fold:             # specification for k_fold
-      total_devices: 10
+      total_devices: 2
       ratio: 2
 
 # train and test loaders
