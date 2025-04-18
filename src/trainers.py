@@ -215,23 +215,22 @@ class SIM_CLR_Trainer(Trainer):
         mlp_instance = self.models["mlp_instance"].to(self.device)
         mlp_instance.train()
 
-        p_aug, q_aug = np.random.choice(augs, size=2)
-
-        batch_p = p_aug(batch)
-        batch_q = q_aug(batch)
-
-        if self.large_augs:
+        if type == 'large_augs':
             large_augs = self.models["large_augs"].to(self.device)
             large_augs.train()
 
             p_features = features_extractor.second_part(
-                large_augs(features_extractor.first_part(batch_p))
+                large_augs(features_extractor.first_part(batch))
             )
             q_features = features_extractor.second_part(
-                large_augs(features_extractor.first_part(batch_q))
+                large_augs(features_extractor.first_part(batch))
             )
-    
+            
         else:
+            p_aug, q_aug = np.random.choice(augs, size=2)
+            batch_p = p_aug(batch)
+            batch_q = q_aug(batch)
+            
             p_features, _ = features_extractor(batch_p)
             q_features, _ = features_extractor(batch_q)
 
@@ -249,7 +248,10 @@ class SIM_CLR_Trainer(Trainer):
         elif type == 'augs':
             loss = -loss
             optimizer = self.optimizers["augs_optimizer"]
-
+        elif type == 'large_augs':
+            loss = -loss
+            optimizer = self.optimizers["large_augs_optimizer"]
+            
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -280,9 +282,14 @@ class SIM_CLR_Trainer(Trainer):
         for batch_inputs, batch_device_ids in train_loader:
             loss = self._train_step(batch_inputs, "features extractor")
 
+            if self.large_augs:
+                loss -= self._train_step(batch_inputs, "large_augs")
+
+            loss += self._train_step(batch_inputs, "features extractor")
+
             if self.augs_type == "learnable":
                 loss -= self._train_step(batch_inputs, "augs")
-                loss /= 2
+            
 
             running_loss += loss
             c += 1
