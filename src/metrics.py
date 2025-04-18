@@ -227,8 +227,6 @@ def get_supervised_metrics_features(
             train_clusters = train_clusters
         )
 
-        scores = 1 - scores
-
         all_metrics |= classification_metrics(scores, targets, 0.95, clusters_number) | clusters_super_metrics
 
     return all_metrics

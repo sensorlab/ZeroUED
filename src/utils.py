@@ -84,6 +84,7 @@ def get_data_configs(dataset_config):
         test_config = copy.deepcopy(dataset_config)
         test_config.pop("k_fold")
         test_config["devices"] = test_devices
+        test_config['days']= (1,)
         test_configs = [test_config] * ratio
 
         train_configs = []
@@ -98,6 +99,7 @@ def get_data_configs(dataset_config):
 
             train_config = copy.deepcopy(dataset_config)
             train_config.pop("k_fold")
+            train_config['days']= (2,)
             train_config["devices"] = train_devices
             train_configs.append(train_config)
 
@@ -225,7 +227,7 @@ def parse_configs(exp_configs, params):
                 for val in v:
                     node[k] = val
                     cur_config = copy.deepcopy(exp_configs)
-                    config, param = parse_configs(cur_config, params + f"{k}_{v}") 
+                    config, param = parse_configs(cur_config, params + f"{k}_{val}") 
                     next_configs += config
                     next_params += param
                 return next_configs, next_params

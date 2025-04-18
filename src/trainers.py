@@ -289,7 +289,6 @@ class SIM_CLR_Trainer(Trainer):
             if self.augs_type == "learnable":
                 loss -= self._train_step(batch_inputs, "augs")
             
-
             running_loss += loss
             c += 1
 
