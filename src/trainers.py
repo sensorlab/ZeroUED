@@ -890,7 +890,8 @@ class Deep_Clustering_Trainer(Trainer):
         model.eval()
 
         train_features, ids = self.get_features(train_loader, return_indices=True)
-        self.ids = ids
+        
+        _, indices = torch.sort(ids,  descending=False)
 
         pca = PCA(20)
         train_features_reduced = pca.fit_transform(train_features)
@@ -898,7 +899,7 @@ class Deep_Clustering_Trainer(Trainer):
         kmeans = KMeans(self.n_clusters)
         self.p_labels = torch.tensor(
             kmeans.fit_predict(train_features_reduced), dtype=torch.long
-        )
+        )[indices]
 
     def train_epoch(
         self,

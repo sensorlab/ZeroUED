@@ -1,0 +1,51 @@
+num_iterations: 1     # iterations for each config
+starting_iteration: 0 # start id of iteration
+exp_id: test_2        # id of current run
+logs_dir: logs        # dir for logs
+report_interval: 5    # report interval
+
+# dataset specification
+dataset:
+  name: WiSig           # name in [WiSig, LoRa, Drones]
+  config:
+    file: ManyTx.pkl    # file path for WiSig
+    k_fold:             # specification for k_fold
+      total_devices: 10
+      ratio: 2
+
+# train and test loaders
+train_loader:
+  num_workers: 1
+  batch_size: 10
+  shuffle: true
+
+test_loader:
+  num_workers: 1
+  batch_size: 10
+  shuffle: false
+
+# specifications for metrics computing
+evaluation:
+  clusters_numbers: !!python/tuple [20, 30, 40] # for which numbers of clusters calculate metrics
+
+# specifications for approach and trainer parameters
+approach:
+  name: AE
+  config:
+    noise_std: 0.1
+    device: cuda
+    num_epochs: 20
+  trainer:
+    main_optimizer:
+      name: Adam
+      config:
+        lr: [1e-4, 1e-5] # ranges are supported
+
+# specifications for feature_extractor
+feature_extractor:
+  name: AE_CNN_1D
+  config:
+    input_signal_length: 256
+    in_channels: 2
+    kernel_size_maxpool: 2
+    distance_loss: [True, False]
