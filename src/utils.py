@@ -174,14 +174,21 @@ def get_trainer(exp_config: dict):
             **trainer_cfg["augmentations"], type=approach_cfg["augs_type"]
         )
 
+        if approach_cfg["augs_type"] == 'learnable':
+            optimizers["augs_optimizer"] = get_optimizer(
+                models["augs"],
+                trainer_cfg["augs_optimizer"]["name"],
+                trainer_cfg["augs_optimizer"]["config"],
+            )
+        
         if approach_cfg.get("large_augs"):
             models["large_augs"] = side_networks.get_augmentations(
                 **trainer_cfg["large_augmentations"], type="large_augs"
             )
             optimizers["large_augs_optimizer"] = get_optimizer(
                 models["large_augs"],
-                trainer_cfg["augs_optimizer"]["name"],
-                trainer_cfg["augs_optimizer"]["config"],
+                trainer_cfg["large_augs_optimizer"]["name"],
+                trainer_cfg["large_augs_optimizer"]["config"],
             )
 
         if approach_cfg.get("clusters_loss"):

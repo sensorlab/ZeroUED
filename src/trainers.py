@@ -320,7 +320,7 @@ class SIM_CLR_Trainer(Trainer):
         loader.dataset.return_indices = False
 
         with torch.no_grad():
-            for inputs, target in tqdm.tqdm(loader):
+            for inputs, target in loader:
                 inputs, target = inputs.to(self.device), target.to(self.device)
 
                 features, _ = model(inputs)
