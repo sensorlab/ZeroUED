@@ -284,8 +284,7 @@ class SIM_CLR_Trainer(Trainer):
 
             if self.large_augs:
                 loss -= self._train_step(batch_inputs, "large_augs")
-
-            loss += self._train_step(batch_inputs, "features extractor")
+                loss += self._train_step(batch_inputs, "features extractor")
 
             if self.augs_type == "learnable":
                 loss -= self._train_step(batch_inputs, "augs")
