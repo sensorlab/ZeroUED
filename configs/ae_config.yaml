@@ -8,7 +8,7 @@ report_interval: 5    # report interval
 dataset:
   name: WiSig           # name in [WiSig, LoRa, Drones]
   config:
-    file: ManyTx.pkl    # file path for WiSig
+    file: many_sig.pkl    # file path for WiSig
     k_fold:             # specification for k_fold
       total_devices: 10
       ratio: 2
