@@ -29,6 +29,7 @@ We have chosen three datasets for evaluation:
 5. Download the data. For example https://cores.ee.ucla.edu/downloads/datasets/wisig/#/downloads
    ```
    pip install gdown
+   import gdown
    gdown.download('https://drive.google.com/uc?id=1szuns8MhcYocdbipK9t9TM9MLgEMklxk', 'many_sig', quiet=False)
    ```
 6. Run experiemnts from config ```python run_experiments configs/ae_config.yaml ```
