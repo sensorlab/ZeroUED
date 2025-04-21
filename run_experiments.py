@@ -2,7 +2,7 @@ import os
 import json
 import yaml
 import sys
-from src import utils
+from src import config_manager
 
 def load_yaml_config(config_path):
     """
@@ -44,9 +44,9 @@ if __name__ == "__main__":
     except (FileNotFoundError, ValueError) as e:
         print(f"Error loading YAML config: {e}")
 
-    configs, params = utils.parse_configs(yaml_config, '')
+    configs, params = config_manager.parse_configs(yaml_config, '')
     
     for config, param in zip(configs, params):
         config['params_set'] = param
-        utils.evauate_config(config)
+        config_manager.evauate_config(config)
         
