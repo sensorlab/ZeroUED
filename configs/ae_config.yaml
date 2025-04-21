@@ -1,6 +1,6 @@
 num_iterations: 1     # iterations for each config
 starting_iteration: 0 # start id of iteration
-exp_id: test_2        # id of current run
+exp_id: test        # id of current run
 logs_dir: logs        # dir for logs
 report_interval: 5    # report interval
 
@@ -8,7 +8,7 @@ report_interval: 5    # report interval
 dataset:
   name: WiSig           # name in [WiSig, LoRa, Drones]
   config:
-    file: many_sig.pkl    # file path for WiSig
+    file: ManySig.pkl    # file path for WiSig
     k_fold:             # specification for k_fold
       total_devices: 2
       ratio: 2
@@ -33,14 +33,14 @@ approach:
   name: AE
   config:
     noise_std: 0.1
-    device: cuda
+    device: cpu
     num_epochs: 20
     distance_loss: [True, False]
   trainer:
     main_optimizer:
       name: Adam
       config:
-        lr: [1e-4, 1e-5] # ranges are supported
+        lr: [0.001, 0.0001] # ranges are supported
 
 # specifications for feature_extractor
 feature_extractor:
