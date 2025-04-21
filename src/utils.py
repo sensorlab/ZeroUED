@@ -75,6 +75,9 @@ def get_data_configs(dataset_config):
     """
     Return training and testing config sets along with unknown device IDs for k-fold or static splits.
     """
+    test_specs = dataset_config.pop('test_config')
+    train_specs = dataset_config.pop('train_config')
+    
     if "k_fold" in dataset_config:
         ratio = dataset_config["k_fold"]["ratio"]
         total_devices = dataset_config["k_fold"]["total_devices"]
@@ -84,7 +87,7 @@ def get_data_configs(dataset_config):
         test_config = copy.deepcopy(dataset_config)
         test_config.pop("k_fold")
         test_config["devices"] = test_devices
-        test_config['days']= (1,)
+        test_config = test_config | test_specs
         test_configs = [test_config] * ratio
 
         train_configs = []
@@ -101,16 +104,14 @@ def get_data_configs(dataset_config):
             train_config.pop("k_fold")
             train_config['days']= (2,)
             train_config["devices"] = train_devices
+            train_config = train_config | train_specs
             train_configs.append(train_config)
 
         return train_configs, test_configs, unknown_devices_folds
 
     # Static train/test split
-    train_cfg = copy.deepcopy(dataset_config)
-    train_cfg["devices"] = train_cfg.pop("train")
-
-    test_cfg = copy.deepcopy(dataset_config)
-    test_cfg["devices"] = test_cfg.pop("test")
+    train_cfg = copy.deepcopy(dataset_config) | train_specs
+    test_cfg = copy.deepcopy(dataset_config) | train_specs
 
     unknown_devices = [d for d in test_cfg["devices"] if d not in train_cfg["devices"]]
     return [train_cfg], [test_cfg], [unknown_devices]
