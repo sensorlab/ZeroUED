@@ -25,7 +25,7 @@ We have chosen three datasets for evaluation:
 1. ```mamba env create -f env.yaml```
 2. ```mamba activate SignalSage```
 3. Create an account at https://wandb.ai
-4. Login with your token ```wandb login```
+4. Login with your token (can be found in https://wandb.ai/quickstart?product=models) ```wandb login```
 5. Download the data. For example https://cores.ee.ucla.edu/downloads/datasets/wisig/#/downloads
    ```
    pip install gdown
