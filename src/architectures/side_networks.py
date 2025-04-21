@@ -88,8 +88,6 @@ class Augmentation_Masked(nn.Module):
         
         return new_x
 
-
-
 class Mlp(nn.Module):
     def __init__(self, in_features, out_features, apply_softmax = False):
         super(Mlp, self).__init__()
@@ -108,12 +106,18 @@ class Mlp(nn.Module):
 
 def get_augmentations(viewmaker_config: dict, type:str ='learnable', dims:int = 1):
     if type == 'large_augs':
-        return Viewmaker_1D(**viewmaker_config)
+        if dims == 1:
+            return Viewmaker_1D(**viewmaker_config)
+        if dims == 2:
+            return Viewmaker(**viewmaker_config)
     
-    if type == 'learnable' and dims == 1:
-        return nn.ModuleList([Viewmaker_1D(**viewmaker_config)])
-        
-    if type == 'static' and dims == 1:
+    if type == 'learnable':
+         if dims == 1:
+            return nn.ModuleList([Viewmaker_1D(**viewmaker_config)])
+         if dims == 2:
+            return nn.ModuleList([Viewmaker(**viewmaker_config)])
+            
+    if type == 'static':
         return nn.ModuleList(
             [
                 Augmentation_Masked(**viewmaker_config, aug_module = Noise),

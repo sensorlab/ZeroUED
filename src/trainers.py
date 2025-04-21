@@ -834,7 +834,6 @@ class Deep_Clustering_Trainer(Trainer):
         self.loss_func = nn.CrossEntropyLoss()
         self.n_clusters = n_clusters
         self.softmax = nn.Softmax()
-        self.ids = None
         self.p_labels = None
 
     def get_features(

@@ -91,12 +91,10 @@ class Simple_CNN_1D(nn.Module):
         """
         # calc the result shape
         cur_signal_length = input_signal_length
-        
         num_layers = len(layers_output_sizes)
         layers = []
         
         for i in range(num_layers):
-            
             # input channels for current layer
             if i == 0:
                 cur_in_channels = in_channels
@@ -137,8 +135,6 @@ class Simple_CNN_1D(nn.Module):
             
         # total size of the output tensor(num_chanhnels, signal_length)
         output_size = cur_signal_length * layers_output_sizes[-1] # default 512
-
-        print(f"output_size: {output_size}")
         
         # linear layer for feature map reduction
         layers.extend(
@@ -158,17 +154,11 @@ class Simple_CNN_1D(nn.Module):
             x = self.feature_layers[i](x)
         return x
         
-    def forward(self, x, large_aug = None, aug_index = None):
+    def forward(self, x):
         features = x
         for i in range(len(self.feature_layers)):
-            if aug_index == i and large_aug is not None:
-                features = large_aug(features)
             features = self.feature_layers[i](features)
         return features, self.classif_head(features)
-
-
-
-    
     
 class AE_CNN_1D(nn.Module):
 
@@ -274,16 +264,13 @@ class AE_CNN_1D(nn.Module):
         """
         # calc the result shape
         cur_signal_length = input_signal_length
-        
         num_layers = len(layers_output_sizes)
         
         layers = []
         maxpooling_layers_positions = set()
-        
         counter = 0
         
         for i in range(num_layers):
-            
             # input channels for current layer
             if i == 0:
                 cur_in_channels = in_channels
@@ -292,9 +279,8 @@ class AE_CNN_1D(nn.Module):
 
             # memorize current maxpooling's position
             maxpooling_layers_positions.add(counter + 3)
-            
             counter += 4
-
+            
             # conv1d->batchnorm->relu->maxpool
             layers.extend(
                     [
@@ -320,7 +306,6 @@ class AE_CNN_1D(nn.Module):
             
         # total size of the output tensor(num_chanhnels, signal_length)
         output_size = cur_signal_length * layers_output_sizes[-1] # default 512
-
         
         return (nn.ModuleList(layers), maxpooling_layers_positions, cur_signal_length, output_size)
     
@@ -340,17 +325,13 @@ class AE_CNN_1D(nn.Module):
         
         num_layers = len(layers_output_sizes)
         layers_output_sizes = layers_output_sizes[::-1]
-        
         layers = []
         maxunpooling_layers_positions = set()
 
         # inverse order: linear layer first
-        
-        
         counter = 0
         
         for i in range(num_layers):
-            
             # cur out channels
             if i == num_layers - 1:
                 cur_out_channels = in_channels

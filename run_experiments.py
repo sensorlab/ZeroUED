@@ -39,7 +39,7 @@ if __name__ == "__main__":
     
     try:
         yaml_config = load_yaml_config(yaml_config_path)
-        print("YAML Configuration loaded successfully:")
+        print("YAML Configurations loaded successfully")
         
     except (FileNotFoundError, ValueError) as e:
         print(f"Error loading YAML config: {e}")
