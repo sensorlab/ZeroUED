@@ -31,7 +31,7 @@ We have chosen three datasets for evaluation:
    # download ManySig
    pip install gdown
    python download_data.py 
-   !unzip many_sig
+   unzip many_sig
    ```
 6. Run experiemnts from config ```python run_experiments configs/ae_config.yaml ```
 
