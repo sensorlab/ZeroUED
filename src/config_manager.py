@@ -14,14 +14,14 @@ from torchvision import transforms
 
 from src.datasets import DronesDataset, WiSig_Dataset, LoRaDataset
 from src.architectures import side_networks
-from src.architectures.cnn import Simple_CNN_1D, AE_CNN_1D
-from src.architectures.transformers import TS_Transformer
-from src.architectures.cnn_lstm import CNN_LSTM
-from src.architectures.cnn_transformer import CNN_Transformer
+from src.architectures.features_extractors.cnn import Simple_CNN_1D, AE_CNN_1D
+from src.architectures.features_extractors.transformers import TS_Transformer
+from src.architectures.features_extractors.cnn_lstm import CNN_LSTM
+from src.architectures.features_extractors.cnn_transformer import CNN_Transformer
 from src.architectures.kan import Autoencoder as KANS_AE
-from src.architectures.resnet1d import ResNet1D
-from src.architectures.resnet2d import resnet18
-from src.architectures.vit import Vit_14
+from src.architectures.features_extractors.resnet1d import ResNet1D
+from src.architectures.features_extractors.resnet2d import ResNet2D
+from src.architectures.features_extractors.vit import Vit_14
 from src.trainers import (
     SIM_CLR_Trainer,
     Deep_Clustering_Trainer,
@@ -102,11 +102,10 @@ def get_data_configs(dataset_config):
 
             train_config = copy.deepcopy(dataset_config)
             train_config.pop("k_fold")
-            train_config['days']= (2,)
             train_config["devices"] = train_devices
             train_config = train_config | train_specs
             train_configs.append(train_config)
-
+        print(train_configs, test_configs)
         return train_configs, test_configs, unknown_devices_folds
 
     # Static train/test split
@@ -123,8 +122,10 @@ def evauate_config(exp_config: dict):
     train_cfgs, test_cfgs, unknown_folds = get_data_configs(exp_config["dataset"]["config"])
     dataset_cls = DATASETS[exp_config["dataset"]["name"]]
     report_interval = exp_config["report_interval"]
-
+    starting_fold = exp_config.get("starting_fold",0)
     for fold, (train_cfg, test_cfg, unknown_devices) in enumerate(zip(train_cfgs, test_cfgs, unknown_folds)):
+        if fold < starting_fold:
+            continue
         train_set = dataset_cls(**train_cfg)
         test_set = dataset_cls(**test_cfg)
 
@@ -136,7 +137,7 @@ def evauate_config(exp_config: dict):
             trainer = get_trainer(exp_config)
 
             wandb.init(
-                project=f"{exp_config['dataset']['name']}_evaluations",
+                project=f"{exp_config['dataset']['name']}_evaluations_CL",
                 config={**exp_config, **train_cfg, **test_cfg, "iteration": iteration, "fold": fold},
                 name=f"fold_{fold}, iter_{iteration}, approach_{exp_config['approach']['name']}, f_extractor_{exp_config['feature_extractor']['name']}",
             )
