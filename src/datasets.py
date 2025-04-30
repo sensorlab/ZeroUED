@@ -148,7 +148,6 @@ class WiSig_Dataset(Dataset):
     def __getitem__(self, idx):
         sample, tx = self.data_ordered[idx]
         sample = sample.T
-
         sample = sample.astype(np.float32)
         
         if self.transform_to_2d:
@@ -162,9 +161,3 @@ class WiSig_Dataset(Dataset):
             sample = transforms.Resize(size=resize_to)(torch.tensor(sample, dtype=torch.float32))
 
         return (sample, tx, idx) if self.return_indices else (sample, tx)
-        
-    
-            
-    
-        
-
