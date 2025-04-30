@@ -83,10 +83,10 @@ class Decoder(nn.Module):
 
 
 class Autoencoder(nn.Module):
-    def __init__(self, input_size, hidden_size, bottleneck_size):
+    def __init__(self, input_size, hidden_size, bottleneck_size, grid_size = 5):
         super(Autoencoder, self).__init__()
-        self.encoder = Encoder(input_size, hidden_size, bottleneck_size)
-        self.decoder = Decoder(bottleneck_size, hidden_size, input_size)
+        self.encoder = Encoder(input_size, hidden_size, bottleneck_size, grid_size = grid_size)
+        self.decoder = Decoder(bottleneck_size, hidden_size, input_size, grid_size = grid_size)
 
     def forward(self, x):
         x = x.reshape(x.shape[0], -1)
