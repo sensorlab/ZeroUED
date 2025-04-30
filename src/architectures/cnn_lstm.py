@@ -7,6 +7,11 @@ from src.architectures.cnn import Simple_CNN_1D
 
 class CNN_LSTM(nn.Module):
 
+    """
+    Inspired by 
+    https://ieeexplore.ieee.org/abstract/document/10615420
+    """
+
     name = "CNN_LSTM"
 
     def __init__(
