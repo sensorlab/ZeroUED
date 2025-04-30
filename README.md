@@ -16,8 +16,8 @@ Evaluated approaches:
   - [Viewmaker Sim CLR](https://www.researchgate.net/publication/344678406_Viewmaker_Networks_Learning_Views_for_Unsupervised_Representation_Learning)
 
 We have chosen two datasets for evaluation:
-  - WiSig
-  - Lora
+  - [WiSig](https://cores.ee.ucla.edu/downloads/datasets/wisig/)
+  - [LoRa RF](https://ieeexplore.ieee.org/document/9715147)
 
 # Installation
 1. ```mamba env create -f env.yaml```
