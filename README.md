@@ -51,3 +51,6 @@ We have chosen two datasets for evaluation:
 ```reqs.txt``` and ```env.yaml``` Dependences.
 
 ```download_data.py``` Script to download datasets.
+
+# Acknowledgment
+The authors would like to acknowledge funding from the European Union's Horizon Europe Framework Programme NANCY project under Grant Agreement No. 101096456.
