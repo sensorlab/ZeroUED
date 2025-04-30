@@ -41,14 +41,15 @@ We have chosen three datasets for evaluation:
 ```configs/``` Configurations of epxeriments.
 
 ```src/``` Dir of the source code. 
-    ```src/trainers.py``` Trainers that handles learning process of different approaches.
-    ```src/datasets.py``` Datasets objects.
-    ```src/metrics.py```  Code for metrics computation.
-    ```src/config_manager.py``` Handles configs files.  
-    ```src/architectures``` Dir with Features extractors, Mlp head and Viewmakers.
 
-```run_experiments.py``` Code for runing experiments from terminal using config.
+    - src/trainers.py       Trainers that handles learning process of different approaches.
+    - src/datasets.py       Datasets objects.
+    - src/metrics.py        Code for metrics computation.
+    - src/config_manager.py Handles configs files.  
+    - src/architectures`    Dir with Features extractors, Mlp head and Viewmakers.
+
+```run_experiments.py``` Code for runing experiments using config.
 
 ```reqs.txt``` and ```env.yaml``` Dependences.
 
-```download_data.py``` script to download datasets.
+```download_data.py``` Script to download datasets.
