@@ -2,7 +2,7 @@ from torch import nn
 import torch
 import numpy as np
 from typing import Tuple
-from src.architectures.cnn import Simple_CNN_1D
+from src.architectures.features_extractors.cnn import Simple_CNN_1D
 
 
 class CNN_LSTM(nn.Module):
