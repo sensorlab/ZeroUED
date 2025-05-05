@@ -2,13 +2,13 @@ from torch import nn
 import torch
 import numpy as np
 from typing import Tuple
-from src.architectures.cnn import Simple_CNN_1D
-from src.architectures.transformers import TS_Transformer
+from src.architectures.features_extractors.cnn import Simple_CNN_1D
+from src.architectures.features_extractors.transformers import TS_Transformer
 from torch import nn
 import torch
 import numpy as np
 from typing import Tuple
-from src.architectures.cnn import Simple_CNN_1D
+from src.architectures.features_extractors.cnn import Simple_CNN_1D
 
 class CNN_Transformer(nn.Module):
 
