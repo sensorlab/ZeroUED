@@ -18,7 +18,7 @@ from src.architectures.features_extractors.cnn import Simple_CNN_1D, AE_CNN_1D
 from src.architectures.features_extractors.transformers import TS_Transformer
 from src.architectures.features_extractors.cnn_lstm import CNN_LSTM
 from src.architectures.features_extractors.cnn_transformer import CNN_Transformer
-from src.architectures.kan import Autoencoder as KANS_AE
+from src.architectures.features_extractors.kan import Autoencoder as KANS_AE
 from src.architectures.features_extractors.resnet1d import ResNet1D
 from src.architectures.features_extractors.resnet2d import ResNet2D
 from src.architectures.features_extractors.vit import Vit_14
