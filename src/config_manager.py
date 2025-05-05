@@ -34,7 +34,7 @@ DATASETS = {"WiSig": WiSig_Dataset, "LoRa": LoRaDataset, "Drones": DronesDataset
 FEATURES_EXCTRACTORS = {
     "Simple_CNN_1D": Simple_CNN_1D,
     "ResNet_1D": ResNet1D,
-    "ResNet_2D": resnet18,
+    "ResNet_2D": ResNet2D,
     "CNN_Trasnformer": CNN_Transformer,
     "AE_KAN": KANS_AE,
     "AE_CNN_1D": AE_CNN_1D,
@@ -105,7 +105,6 @@ def get_data_configs(dataset_config):
             train_config["devices"] = train_devices
             train_config = train_config | train_specs
             train_configs.append(train_config)
-        print(train_configs, test_configs)
         return train_configs, test_configs, unknown_devices_folds
 
     # Static train/test split
@@ -137,7 +136,7 @@ def evauate_config(exp_config: dict):
             trainer = get_trainer(exp_config)
 
             wandb.init(
-                project=f"{exp_config['dataset']['name']}_evaluations_CL",
+                project=f"{exp_config['dataset']['name']}_evaluations",
                 config={**exp_config, **train_cfg, **test_cfg, "iteration": iteration, "fold": fold},
                 name=f"fold_{fold}, iter_{iteration}, approach_{exp_config['approach']['name']}, f_extractor_{exp_config['feature_extractor']['name']}",
             )
