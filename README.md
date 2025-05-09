@@ -18,6 +18,7 @@ Evaluated approaches:
 We have chosen two datasets for evaluation:
   - [WiSig](https://cores.ee.ucla.edu/downloads/datasets/wisig/)
   - [LoRa RF](https://ieeexplore.ieee.org/document/9715147)
+  - [UAVSig](https://cores.ee.ucla.edu/downloads/datasets/uavsig/)
 
 # Installation
 1. ```mamba env create -f env.yaml```
@@ -26,7 +27,6 @@ We have chosen two datasets for evaluation:
 4. Login with your token (can be found in https://wandb.ai/quickstart?product=models) ```wandb login```
 5. Download the data
    ```
-   pip install gdown
    python download_data.py
    ```
 6. Run experiemnts from config ```python run_experiments configs/ae_config.yaml ```
