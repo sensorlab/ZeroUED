@@ -2,6 +2,7 @@ import wandb
 import pandas as pd
 import numpy as np
 from scipy.stats import norm
+from matplotlib import pyplot as plt
 
 api = wandb.Api()
 
@@ -38,7 +39,10 @@ def prepare_data_from_wandb(
                 key_splitted = key.split('__')
                 cur_lvl_config = config
                 for cur_key_lvl in key_splitted:
-                    cur_lvl_config = cur_lvl_config[cur_key_lvl]
+                    cur_lvl_config = cur_lvl_config.get(cur_key_lvl, None)
+                    if cur_lvl_config is None:
+                        cur_lvl_config = 'none'
+                        break
                 cur_df[key] = cur_lvl_config      
             all_metrics.append(cur_df)
 
@@ -73,7 +77,7 @@ def mde(
             stats[f"{metric}_{i}_mde_rel"] = mde_val / mean * 100 if mean != 0 else np.nan
         
         stats['_runtime_mean'] = data['_runtime'].mean()
-        stats['len_data'] = len(data)
+        stats['len_data'] = data.shape[0]
         
         results.append(pd.DataFrame([stats]))
 
@@ -88,3 +92,42 @@ def calculate_mde_from_runs(
     """Group data and apply MDE calculation per group."""
     mde_func = lambda data: mde(data, num_iterations = num_iterations) 
     return data.groupby(by=grouping_keys).apply(mde_func)
+
+def draw_mde_curve(mdes_dataframe, metric, num_iterations, type = 'rel'):
+    for index, row in mdes_dataframe.iterrows():
+        if type == 'rel':
+            columns = [f"{metric}_{i}_mde_rel" for i in range(1, num_iterations + 1)]
+        elif type == 'abs':
+            columns = [f"{metric}_{i}_mde" for i in range(1, num_iterations + 1)]
+        values = row[columns]
+
+        label = ''
+        for key in index[:-1]:
+            if key != 'none':
+                label += f"{key}."
+        plt.plot(
+            [i+1 for i in range(num_iterations)],
+            values,
+            label = label
+        )
+    plt.legend()
+    plt.xlabel('num_iterations')
+    plt.ylabel(f'mde_{type}')
+
+def draw_time_iter_curve(mdes_dataframe, num_iterations):
+    for index, row in mdes_dataframe.iterrows():
+        values = row['_runtime_mean'].values[0] / 60
+        values *= row['len_data'].values[0]
+        
+        label = ''
+        for key in index[:-1]:
+            if key != 'none':
+                label += f"{key}."
+        plt.plot(
+            [i+1 for i in range(num_iterations)],
+            [values * (i+1) for i in range(num_iterations)],
+            label = label
+        )
+    plt.legend()
+    plt.xlabel('num_iterations')
+    plt.ylabel('runtime, minutes')
