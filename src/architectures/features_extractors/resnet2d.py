@@ -157,26 +157,6 @@ class ResNet(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def first_part(self, x):
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
-        x = self.maxpool(x)
-        x = self.layer1(x)
-
-        return x
-
-    def second_part(self, x):
-
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
-        x = self.avgpool(x)
-        x = x.view(x.size(0), -1)
-        x = self.fc(x)
-
-        return x
-
     def forward(self, x, layer=7):
         if layer <= 0:
             return x

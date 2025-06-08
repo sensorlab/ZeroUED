@@ -60,31 +60,6 @@ class CNN_LSTM(nn.Module):
         )
         self.classif_head = nn.Linear(self.features_size, n_classes)
 
-    def first_part(self, x):
-        x = self.relu1(self.bn1(self.conv1(x)))
-        x = self.relu2(self.bn2(self.conv2(x)))
-        x_cnn_first = self.cnn.first_part(x)
-
-        self.tmp = x
-        
-        return x_cnn_first
-
-    def second_part(self, x):
-        x = self.cnn.second_part(x)
-        
-        x_lstm = self.tmp
-        x_lstm = x_lstm.permute(0,1,2)
-        x_lstm = x_lstm.reshape(
-            x_lstm.shape[0], 
-            -1, self.lstm_input_size
-        )
-        x_lstm,_ = self.lstm(x_lstm)
-        x_lstm = x_lstm.mean(1)
-
-        features = self.combiner(torch.cat([x, x_lstm], dim = 1))
-        
-        return features
-
     def forward(self, x):
         x = self.relu1(self.bn1(self.conv1(x)))
         x = self.relu2(self.bn2(self.conv2(x)))

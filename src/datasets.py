@@ -124,7 +124,7 @@ class WiSig_Dataset(Dataset):
     """
     Soure: S. Hanna, S. Karunaratne, and D. Cabric, “WiSig: A Large-Scale WiFi Signal Dataset for Receiver and Channel Agnostic RF Fingerprinting,” IEEE Access, vol. 10, pp. 22808–22818, 2022, doi: 10.1109/ACCESS.2022.3154790.
     """
-    def __init__(self, file: str, devices=None, days=None, selected_receivers=None, return_indices=False, transform_to_2d=None):
+    def __init__(self, file: str, devices=None, days=None, selected_receivers=None, return_indices=False, transform_to_2d=None, iteration_id = 0, type = 'train'):
         with open(file, 'rb') as f:
             self.data = pickle.load(f)
 
@@ -133,13 +133,27 @@ class WiSig_Dataset(Dataset):
         self.devices = devices or list(range(len(self.data['tx_list'])))
         self.selected_receivers = selected_receivers or list(range(len(self.data['rx_list'])))
         self.selected_days = days or list(range(len(self.data['capture_date_list'])))
-
+        self.k_fold_samples = iteration_id % 5
+        
+        if type == 'train':
+            indices = np.array(
+                [i for i in range(self.k_fold_samples*200)] 
+                + [i for i in range((self.k_fold_samples+1)*200,1000)] 
+            )
+        
+        elif type == 'test':
+            indices = np.array(
+                [i for i in range(self.k_fold_samples*200, (self.k_fold_samples+1)*200)]
+            )
+        else:
+            raise ValueError("Type must be either 'train' or 'test'.")
+            
         self.data_ordered = [
             (sample, i)
             for i in self.devices
             for j in self.selected_receivers
             for m in self.selected_days
-            for sample in self.data['data'][i][j][m][1]
+            for sample in self.data['data'][i][j][m][1][indices]
         ]
 
     def __len__(self):

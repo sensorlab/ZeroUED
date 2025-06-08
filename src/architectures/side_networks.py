@@ -105,11 +105,6 @@ class Mlp(nn.Module):
         return out
 
 def get_augmentations(viewmaker_config: dict, type:str ='learnable', dims:int = 1):
-    if type == 'large_augs':
-        if dims == 1:
-            return Viewmaker_1D(**viewmaker_config)
-        if dims == 2:
-            return Viewmaker(**viewmaker_config)
     
     if type == 'learnable':
          if dims == 1:

@@ -245,36 +245,6 @@ class ResNet1D(nn.Module):
         self.dense = nn.Linear(features_size, n_classes)
         self.fc = nn.Linear(out_channels, features_size)
 
-    def first_part(self, x):
-        out = x
-       
-        out = self.first_block_conv(out)
-       
-        if self.use_bn:
-            out = self.first_block_bn(out)
-        out = self.first_block_relu(out)
-
-        for i_block in range(self.n_block):
-            net = self.basicblock_list[i_block]
-            out = net(out)
-            break
-
-        return out
-
-    def second_part(self, x):
-
-        for i_block in range(1,self.n_block):
-            net = self.basicblock_list[i_block]
-            x = net(x)
-        out = x
-        if self.use_bn:
-            out = self.final_bn(out)
-        out = self.final_relu(out)
-        out = out.mean(-1)
-        out = self.fc(out)
-        
-        return out
-        
     def forward(self, x):
         
         out = x

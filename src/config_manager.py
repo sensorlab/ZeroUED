@@ -125,14 +125,15 @@ def evauate_config(exp_config: dict):
     for fold, (train_cfg, test_cfg, unknown_devices) in enumerate(zip(train_cfgs, test_cfgs, unknown_folds)):
         if fold < starting_fold:
             continue
-        train_set = dataset_cls(**train_cfg)
-        test_set = dataset_cls(**test_cfg)
-
-        targets = np.array([test_set[i][1] in unknown_devices for i in range(len(test_set))])
-        train_loader = DataLoader(train_set, **exp_config["train_loader"])
-        test_loader = DataLoader(test_set, **exp_config["test_loader"])
 
         for iteration in range(exp_config["starting_iteration"], exp_config["num_iterations"]):
+            train_set = dataset_cls(**train_cfg, iteration_id=iteration)
+            test_set = dataset_cls(**test_cfg, iteration_id=iteration)
+
+            targets = np.array([test_set[i][1] in unknown_devices for i in range(len(test_set))])
+            train_loader = DataLoader(train_set, **exp_config["train_loader"])
+            test_loader = DataLoader(test_set, **exp_config["test_loader"])
+            
             trainer = get_trainer(exp_config)
 
             wandb.init(
