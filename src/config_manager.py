@@ -17,6 +17,7 @@ from src.architectures import side_networks
 from src.architectures.features_extractors.cnn import Simple_CNN_1D, AE_CNN_1D
 from src.architectures.features_extractors.transformers import TS_Transformer
 from src.architectures.features_extractors.cnn_lstm import CNN_LSTM
+from src.architectures.kan import Encoder as KANS_Encoder
 from src.architectures.features_extractors.cnn_transformer import CNN_Transformer
 from src.architectures.features_extractors.kan import Autoencoder as KANS_AE
 from src.architectures.features_extractors.resnet1d import ResNet1D
@@ -40,6 +41,7 @@ FEATURES_EXCTRACTORS = {
     "AE_CNN_1D": AE_CNN_1D,
     "CNN_LSTM": CNN_LSTM,
     "Vit": Vit_14,
+    'KANS_Encoder': KANS_Encoder
 }
 
 def report(metrics, trainer, exp_config, fold, iteration, epoch, train_config, test_config):

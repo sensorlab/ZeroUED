@@ -15,7 +15,7 @@ class Encoder(nn.Module):
         self,
         input_size,
         hidden_size,
-        bottleneck_size,
+        bottleneck_size=20,
         grid_size=5,
         spline_order=3,
         scale_noise=0.1,
@@ -24,9 +24,24 @@ class Encoder(nn.Module):
         base_activation=torch.nn.SiLU,
         grid_eps=0.02,
         grid_range=[-1, 1],
+        num_layers = 1,
+        n_classes = 80
     ):
         super(Encoder, self).__init__()
-        self.kan = KANLinear(
+        self.kan_1 = KANLinear(
+            input_size,
+            input_size,
+            grid_size=grid_size,
+            spline_order=spline_order,
+            scale_noise=scale_noise,
+            scale_base=scale_base,
+            scale_spline=scale_spline,
+            base_activation=base_activation,
+            grid_eps=grid_eps,
+            grid_range=grid_range,
+        )
+
+        self.kan_2 = KANLinear(
             input_size,
             hidden_size,
             grid_size=grid_size,
@@ -38,12 +53,14 @@ class Encoder(nn.Module):
             grid_eps=grid_eps,
             grid_range=grid_range,
         )
+        
         self.relu = nn.ReLU()
-        self.dense = nn.Linear(hidden_size, bottleneck_size)
+        self.dense = nn.Linear(hidden_size, n_classes)
 
     def forward(self, x):
-        x = self.kan(x)
-        return x
+        x = x.reshape(x.shape[0],-1)
+        x = self.kan_2(x)
+        return x, self.dense(x)
 
 
 class Decoder(nn.Module):
@@ -83,18 +100,17 @@ class Decoder(nn.Module):
 
 
 class Autoencoder(nn.Module):
-    def __init__(self, input_size, hidden_size, bottleneck_size, grid_size = 5):
+    def __init__(self, input_size, hidden_size, bottleneck_size=20, grid_size=5, num_layers=1):
         super(Autoencoder, self).__init__()
         self.encoder = Encoder(input_size, hidden_size, bottleneck_size, grid_size = grid_size)
         self.decoder = Decoder(bottleneck_size, hidden_size, input_size, grid_size = grid_size)
 
     def forward(self, x):
         x = x.reshape(x.shape[0], -1)
-        x = self.encoder(x)
+        x,_ = self.encoder(x)
         features = x
         x = self.decoder(x)
         return features, x
-
 
 class KANLinear(torch.nn.Module):
     def __init__(
