@@ -28,6 +28,7 @@ class Encoder(nn.Module):
         n_classes = 80
     ):
         super(Encoder, self).__init__()
+        
         self.kan_1 = KANLinear(
             input_size,
             input_size,
@@ -58,6 +59,11 @@ class Encoder(nn.Module):
         self.dense = nn.Linear(hidden_size, n_classes)
 
     def forward(self, x):
+        if self.num_layaers == 2:
+            x = self.kan_1(x)
+            x = self.kan_2(x)
+            return x, self.dense(x)
+            
         x = x.reshape(x.shape[0],-1)
         x = self.kan_2(x)
         return x, self.dense(x)
