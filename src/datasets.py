@@ -124,7 +124,7 @@ class WiSig_Dataset(Dataset):
     """
     Soure: S. Hanna, S. Karunaratne, and D. Cabric, “WiSig: A Large-Scale WiFi Signal Dataset for Receiver and Channel Agnostic RF Fingerprinting,” IEEE Access, vol. 10, pp. 22808–22818, 2022, doi: 10.1109/ACCESS.2022.3154790.
     """
-    def __init__(self, file: str, devices=None, days=None, selected_receivers=None, return_indices=False, transform_to_2d=None, iteration_id = 0, type = 'train'):
+    def __init__(self, file: str, devices=None, days=None, selected_receivers=None, return_indices=False, transform_to_2d=None, train_test_split = False, type = 'train', polars_c = False, k_fold_samples = 0):
         with open(file, 'rb') as f:
             self.data = pickle.load(f)
 
@@ -133,36 +133,76 @@ class WiSig_Dataset(Dataset):
         self.devices = devices or list(range(len(self.data['tx_list'])))
         self.selected_receivers = selected_receivers or list(range(len(self.data['rx_list'])))
         self.selected_days = days or list(range(len(self.data['capture_date_list'])))
-        self.k_fold_samples = iteration_id % 5
-        
-        if type == 'train':
-            indices = np.array(
-                [i for i in range(self.k_fold_samples*200)] 
-                + [i for i in range((self.k_fold_samples+1)*200,1000)] 
-            )
-        
-        elif type == 'test':
-            indices = np.array(
-                [i for i in range(self.k_fold_samples*200, (self.k_fold_samples+1)*200)]
-            )
-        else:
-            raise ValueError("Type must be either 'train' or 'test'.")
+        self.polars_c = polars_c
+
+        if type == 'validation' and train_test_split:
             
-        self.data_ordered = [
-            (sample, i)
-            for i in self.devices
-            for j in self.selected_receivers
-            for m in self.selected_days
-            for sample in self.data['data'][i][j][m][1][indices]
-        ]
+            self.data_ordered = [
+                (sample, i)
+                for i in self.devices
+                for j in self.selected_receivers
+                for m in self.selected_days
+                for sample in self.data['data'][i][j][m][1][-200:]
+            ]
+            
+        elif type == 'test' and train_test_split:
+            self.data_ordered = [
+                (sample, i)
+                for i in self.devices
+                for j in self.selected_receivers
+                for m in self.selected_days
+                for sample in self.data['data'][i][j][m][1][100:200]
+            ]
+            
+        elif type == 'train' and train_test_split:
+            self.data_ordered = [
+                (sample, i)
+                for i in self.devices
+                for j in self.selected_receivers
+                for m in self.selected_days
+                for sample in self.data['data'][i][j][m][1][:-200]
+            ]
+            
+        else:
+            self.data_ordered = [
+                (sample, i)
+                for i in self.devices
+                for j in self.selected_receivers
+                for m in self.selected_days
+                for sample in self.data['data'][i][j][m][1]
+            ]
 
     def __len__(self):
         return len(self.data_ordered)
 
+    def fft_from_iq(self, sample):    
+        data_i = sample[0]
+        data_q = sample[1]
+    
+        f, t, spec = signal.stft(data_i + 1j*data_q,
+                         window='boxcar',
+                         nperseg=16,
+                         noverlap=None,
+                         nfft=128,
+                         return_onesided=False,
+                         padded=False,
+                         boundary=None)
+        
+        spec = np.fft.fftshift(spec, axes=0)
+
+        return np.abs(spec)[np.newaxis]
+
     def __getitem__(self, idx):
         sample, tx = self.data_ordered[idx]
         sample = sample.T
+        
+        sample_ = np.zeros(sample.shape)
+        
+        sample = sample / np.max(np.abs(sample))
         sample = sample.astype(np.float32)
+
+        if False:
+            sample = sample_.astype(np.float32)
         
         if self.transform_to_2d:
             wavelet = self.transform_to_2d['wavelet']
@@ -171,7 +211,7 @@ class WiSig_Dataset(Dataset):
 
             sample = sample[0] + 1j * sample[1]
             coefs, _ = pywt.cwt(sample, np.arange(1, scales + 1), wavelet)
-            sample = np.stack([coefs.real, coefs.imag], axis=0)
-            sample = transforms.Resize(size=resize_to)(torch.tensor(sample, dtype=torch.float32))
+            sample = np.abs(coefs)[np.newaxis]
+            sample = sample.astype(np.float32)
 
         return (sample, tx, idx) if self.return_indices else (sample, tx)
