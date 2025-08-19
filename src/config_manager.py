@@ -17,7 +17,7 @@ from src.architectures import side_networks
 from src.architectures.features_extractors.cnn import Simple_CNN_1D, AE_CNN_1D
 from src.architectures.features_extractors.transformers import TS_Transformer
 from src.architectures.features_extractors.cnn_lstm import CNN_LSTM
-from src.architectures.kan import Encoder as KANS_Encoder
+from src.architectures.features_extractors.kan import Encoder as KANS_Encoder
 from src.architectures.features_extractors.cnn_transformer import CNN_Transformer
 from src.architectures.features_extractors.kan import Autoencoder as KANS_AE
 from src.architectures.features_extractors.resnet1d import ResNet1D
@@ -29,6 +29,15 @@ from src.trainers import (
     AE_Trainer,
     PCA_Trainer,
 )
+
+import random
+
+torch.manual_seed(42)
+torch.cuda.manual_seed(42)
+np.random.seed(42)
+random.seed(42)
+torch.backends.cudnn.enabled=False
+torch.backends.cudnn.deterministic=True
 
 DATASETS = {"WiSig": WiSig_Dataset, "LoRa": LoRaDataset, "Drones": DronesDataset}
 
@@ -129,8 +138,8 @@ def evauate_config(exp_config: dict):
             continue
 
         for iteration in range(exp_config["starting_iteration"], exp_config["num_iterations"]):
-            train_set = dataset_cls(**train_cfg, iteration_id=iteration)
-            test_set = dataset_cls(**test_cfg, iteration_id=iteration)
+            train_set = dataset_cls(**train_cfg)
+            test_set = dataset_cls(**test_cfg)
 
             targets = np.array([test_set[i][1] in unknown_devices for i in range(len(test_set))])
             train_loader = DataLoader(train_set, **exp_config["train_loader"])
@@ -162,6 +171,11 @@ def get_trainer(exp_config: dict):
     """
     approach = exp_config["approach"]["name"]
     approach_cfg = exp_config["approach"]["config"]
+
+
+    if approach == "PCA":
+        return PCA_Trainer(**approach_cfg)
+        
     trainer_cfg = exp_config["approach"]["trainer"]
 
     extractor_name = exp_config["feature_extractor"]["name"]
@@ -207,8 +221,6 @@ def get_trainer(exp_config: dict):
         optimizers = {"main_optimizer": get_optimizer(models, optimizer_name, optimizer_cfg)}
         return Deep_Clustering_Trainer(models=models, optimizers=optimizers, **approach_cfg)
 
-    if approach == "PCA":
-        return PCA_Trainer(**approach_cfg)
 
     if approach == "AE":
         models = nn.ModuleDict({"feature_extractor": extractor})

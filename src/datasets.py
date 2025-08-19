@@ -136,7 +136,6 @@ class WiSig_Dataset(Dataset):
         self.polars_c = polars_c
 
         if type == 'validation' and train_test_split:
-            
             self.data_ordered = [
                 (sample, i)
                 for i in self.devices
@@ -145,14 +144,6 @@ class WiSig_Dataset(Dataset):
                 for sample in self.data['data'][i][j][m][1][-200:]
             ]
             
-        elif type == 'test' and train_test_split:
-            self.data_ordered = [
-                (sample, i)
-                for i in self.devices
-                for j in self.selected_receivers
-                for m in self.selected_days
-                for sample in self.data['data'][i][j][m][1][100:200]
-            ]
             
         elif type == 'train' and train_test_split:
             self.data_ordered = [

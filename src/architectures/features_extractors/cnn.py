@@ -149,7 +149,7 @@ class Simple_CNN_1D(nn.Module):
         features = x
         for i in range(len(self.feature_layers)):
             features = self.feature_layers[i](features)
-        return features, self.classif_head(features)
+        return features, features
     
 class AE_CNN_1D(nn.Module):
 

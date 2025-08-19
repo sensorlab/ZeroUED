@@ -54,7 +54,7 @@ class Inverse(nn.Module):
 
     
 class Augmentation_Masked(nn.Module):
-    def __init__(self, in_channels, singal_length, aug_module, noise_std = 0, num_bits = 16, prob = 0.5):
+    def __init__(self, in_channels, singal_length, aug_module, noise_std = 0.01, num_bits = 16, prob = 0.5):
         super(Augmentation_Masked, self).__init__()
 
         assert singal_length % num_bits == 0
@@ -118,7 +118,6 @@ def get_augmentations(viewmaker_config: dict, type:str ='learnable', dims:int = 
                 Augmentation_Masked(**viewmaker_config, aug_module = Noise),
                 Augmentation_Masked(**viewmaker_config, aug_module = Bias),
                 Augmentation_Masked(**viewmaker_config, aug_module = Amplifier),
-                Augmentation_Masked(**viewmaker_config, aug_module = Inverse),
             ]
         )
         

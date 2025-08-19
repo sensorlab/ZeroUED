@@ -652,14 +652,16 @@ class AE_Trainer(Trainer):
 
 class PCA_Trainer(Trainer):
 
-    def __init__(self, pca: PCA):
+    def __init__(self, **approach_cfg):
         """
         Makes PCA
 
         Args:
             pca: PCA solver from as in sklearn
         """
-        self.pca = pca
+        features_size = approach_cfg['features_size']
+        self.pca = PCA(features_size)
+        self.num_epochs = 5
 
     def train_epoch(self, train_loader: torch.utils.data.DataLoader) -> float:
         """

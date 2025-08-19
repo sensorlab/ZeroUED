@@ -1,8 +1,8 @@
-num_iterations: 5     # iterations for each config
+num_iterations: 1     # iterations for each config
 starting_iteration: 0 # start id of iteration
-exp_id: test        # id of current run
+exp_id: test          # id of current run
 logs_dir: logs        # dir for logs
-report_interval: 2    # report interval
+report_interval: 10   # report interval
 
 # dataset specification
 dataset:
@@ -12,11 +12,13 @@ dataset:
     k_fold:             # specification for k_fold
       total_devices: 6
       ratio: 6
-    selected_receivers: !!python/tuple [1,]
+    selected_receivers: !!python/tuple [0,]
     test_config:
-      days: !!python/tuple [2,]
+      days: !!python/tuple [0,1,2,3]
+      type: validation
     train_config:
-      days: !!python/tuple [1,]
+      days: !!python/tuple [0,1,2,3]
+      type: train
 
 # train and test loaders
 train_loader:
@@ -53,4 +55,5 @@ feature_extractor:
   config:
     input_signal_length: 256
     in_channels: 2
+    features_size: 20
     kernel_size_maxpool: 3

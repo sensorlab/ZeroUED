@@ -8,15 +8,17 @@ report_interval: 2    # report interval
 dataset:
   name: WiSig # name in [WiSig, LoRa, Drones]
   config:
-    selected_receivers: !!python/tuple [1,]
-    test_config:
-      days: !!python/tuple [2,]
-    train_config:
-      days: !!python/tuple [1,]
     file: ManySig.pkl    # file path for WiSig
     k_fold:             # specification for k_fold
       total_devices: 6
       ratio: 6
+    selected_receivers: !!python/tuple [0,]
+    test_config:
+      days: !!python/tuple [0,1,2,3]
+      type: validation
+    train_config:
+      days: !!python/tuple [0,1,2,3]
+      type: train
 
 # train and test loaders
 train_loader:
@@ -38,26 +40,22 @@ approach:
   name: Sim_CLR
   
   config:
-    device: cpu
+    device: cuda
     num_epochs: 100
-    large_augs: [True, False]
-    augs_type: learnable
+    large_augs: False
+    augs_type: static
     clusters_loss: False
     
   trainer:
     mlp_head:
-        in_features: 100
+        in_features: 20
         out_features: 20
 
     augmentations:
       viewmaker_config:
-        channels: 2
-        epsilon: [0.001, 0.005, 0.01, 0.05, 0.1]
-    
-    large_augmentations:
-      viewmaker_config:
-        channels: 16
-        epsilon: 0.01
+        in_channels: 2
+        singal_length: 256
+        num_bits: 1
       
     main_optimizer:
       name: Adam
@@ -78,6 +76,7 @@ feature_extractor:
   config:
     input_signal_length: 256
     in_channels: 2
-    features_size: 100 # must be the same as in_features in mlp head
+    features_size: 20 # must be the same as in_features in mlp head
     maxplool_strides: 3
     kernel_size: 7
+    features_size: 20

@@ -6,17 +6,19 @@ report_interval: 2    # report interval
 
 # dataset specification
 dataset:
-  name: WiSig           # name in [WiSig, LoRa, Drones]
+  name: WiSig # name in [WiSig, LoRa, Drones]
   config:
     file: ManySig.pkl    # file path for WiSig
     k_fold:             # specification for k_fold
       total_devices: 6
       ratio: 6
-    selected_receivers: !!python/tuple [1,]
+    selected_receivers: !!python/tuple [0,]
     test_config:
-      days: !!python/tuple [2,]
+      days: !!python/tuple [0,1,2,3]
+      type: validation
     train_config:
-      days: !!python/tuple [1,]
+      days: !!python/tuple [0,1,2,3]
+      type: train
 
 # train and test loaders
 train_loader:
@@ -38,7 +40,7 @@ approach:
   name: Deep Clustering
   config:
     clusters_update_interval: 10
-    n_clusters: 80
+    n_clusters: 20
     device: cpu
     num_epochs: 100
   trainer:
@@ -54,4 +56,5 @@ feature_extractor:
     input_signal_length: 256
     in_channels: 2
     maxplool_strides: 3
-    n_classes: 80 # must be the same as n_clusters
+    features_size: 20
+    #n_classes: 80
