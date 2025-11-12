@@ -1,24 +1,23 @@
 # SignalSage
-Self-supervised specific emitter identification
+Design Principles of Zero-Shot Self-Supervised Unknown Emitter Detectors
 
 Mikhail Krasnov, Ljupcho Milosheski, Mihael Mohorčič and Carolina Fortuna
 
-Paper link: -
+Paper link: [2511.07026](https://arxiv.org/abs/2511.07026)
 
 # Background
 
-In this paper, we evaluate different approaches to the unknown radio-emitter detection task and propose our own approach. 
+In this paper, we investigate different approaches to the unknown radio-emitter detection task and propose our own approach. 
 
 Evaluated approaches:
-  - Auto Encoders ([Classical](https://ieeexplore.ieee.org/document/10623390) and [KAN](https://openreview.net/forum?id=Ozo7qJ5vZi))
+  - [Auto Encoders ](https://ieeexplore.ieee.org/document/10623390)
   - [Deep Clustering](https://openaccess.thecvf.com/content_ECCV_2018/html/Mathilde_Caron_Deep_Clustering_for_ECCV_2018_paper.html)
-  - [Classical Sim CLR](https://www.researchgate.net/publication/371460960_Contrastive_Self-supervised_Clustering_for_Specific_Emitter_Identification)
-  - [Viewmaker Sim CLR](https://www.researchgate.net/publication/344678406_Viewmaker_Networks_Learning_Views_for_Unsupervised_Representation_Learning)
+  - [Sim CLR](https://www.researchgate.net/publication/371460960_Contrastive_Self-supervised_Clustering_for_Specific_Emitter_Identification)
+
 
 We have chosen two datasets for evaluation:
   - [WiSig](https://cores.ee.ucla.edu/downloads/datasets/wisig/)
-  - [LoRa RF](https://ieeexplore.ieee.org/document/9715147)
-  - [UAVSig](https://cores.ee.ucla.edu/downloads/datasets/uavsig/)
+  - [ORACLE](https://repository.library.northeastern.edu/files/neu:m044q520q)
 
 # Installation
 1. ```mamba env create -f env.yaml```
