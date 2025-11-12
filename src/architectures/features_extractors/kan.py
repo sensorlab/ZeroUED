@@ -16,8 +16,8 @@ class Encoder(nn.Module):
         input_size,
         hidden_size,
         bottleneck_size=20,
-        grid_size=5,
-        spline_order=3,
+        grid_size=10,
+        spline_order=4,
         scale_noise=0.1,
         scale_base=1.0,
         scale_spline=1.0,
@@ -25,24 +25,12 @@ class Encoder(nn.Module):
         grid_eps=0.02,
         grid_range=[-1, 1],
         num_layers = 1,
-        n_classes = 80
+        n_classes = 80,
+        svd_init = False
     ):
         super(Encoder, self).__init__()
         
         self.kan_1 = KANLinear(
-            input_size,
-            input_size,
-            grid_size=grid_size,
-            spline_order=spline_order,
-            scale_noise=scale_noise,
-            scale_base=scale_base,
-            scale_spline=scale_spline,
-            base_activation=base_activation,
-            grid_eps=grid_eps,
-            grid_range=grid_range,
-        )
-
-        self.kan_2 = KANLinear(
             input_size,
             hidden_size,
             grid_size=grid_size,
@@ -55,18 +43,15 @@ class Encoder(nn.Module):
             grid_range=grid_range,
         )
         
-        self.relu = nn.ReLU()
-        self.dense = nn.Linear(hidden_size, n_classes)
+        self.svd_init = svd_init
+        self.svd_init_layer = nn.Linear(input_size, hidden_size)
+        self.svd_init_layer.weight.requires_grad = False
+        self.svd_init_layer.bias.requires_grad = False
 
     def forward(self, x):
-        if self.num_layaers == 2:
-            x = self.kan_1(x)
-            x = self.kan_2(x)
-            return x, self.dense(x)
-            
         x = x.reshape(x.shape[0],-1)
-        x = self.kan_2(x)
-        return x, self.dense(x)
+        x = self.kan_1(x) + self.svd_init_layer(x) * self.svd_init
+        return x, x
 
 
 class Decoder(nn.Module):

@@ -9,70 +9,64 @@ import torchvision
 import glob
 import json
 
-class DronesDataset(Dataset):
-    """
-    Soruce: Caron, Mathilde, et al. "Deep clustering for unsupervised learning of visual features." Proceedings of the European conference on computer vision (ECCV). 2018.
-    """
-    def __init__(self, filedir: str, input_size: int = 1024, devices=None, bursts=None, heights=None, 
-                 return_indices=False, transform_to_2d=None):
-        self.transform_to_2d = transform_to_2d
+class OracleDataset(Dataset):
+    def __init__(self, file: str, input_size: int = 256, devices=None, 
+                 return_indices=False, type = 'train', modality = 'iq_const'):
         self.return_indices = return_indices
+        self.modality = modality
+        self.devices_map = [10,  4,  6,  0, 15,  1,  9,  2, 11,  3, 12,  8,  5,  7, 13, 14]
 
-        files_list = list(glob.glob(f"{filedir}*.bin"))
-        self.data = []
+        
+        with h5py.File(file) as f:
+            self.data_i = np.array(f['data_i']).astype(np.float32)
+            self.data_q = np.array(f['data_q']).astype(np.float32)
+            self.labels = np.array(f['labels'][:,0]).astype(int)
+            self.data_i_saved = self.data_i.reshape(-1,256)
+            self.data_q_saved = self.data_q.reshape(-1,256)
+            self.labels_saved = self.labels
 
-
-        for file_name in files_list:
-            json_file_name = f"{file_name[:-3]}json"
-
-            try:
-                with open(json_file_name, 'r') as f:
-                    json_file = json.load(f)
-            except Exception as e:
-                print(f"Error reading {json_file_name}: {e}")
-                continue
-
-            burst_number = int(file_name.split('_')[2][5:])
-            uav = int(json_file['annotations']['transmitter']['core:UAV'][3:])
-            height = int(json_file['annotations']['core:distance'][:-2])
-
-            if (devices and uav not in devices) or (bursts and burst_number not in bursts) or (heights and height not in heights):
-                continue
-
-            with open(file_name, 'rb') as f:
-                cur_data = np.frombuffer(f.read(), np.float16)
-                data_i = cur_data[::2]
-                data_q = cur_data[1::2]
-                cut_len = len(data_i) // input_size * input_size
-
-                data_i = data_i[:cut_len]
-                data_q = data_q[:cut_len]
-
-                for i in range(cut_len // input_size):
-                    self.data.append((np.concatenate(
-                        [
-                        data_i[i * input_size:(i + 1) * input_size][np.newaxis, :],
-                        data_q[i * input_size:(i + 1) * input_size][np.newaxis, :]
-                        ]), uav))
-
+        if type == 'validation':
+            self.data_i = self.data_i.reshape(16,2, 2000,256)[:,:,-400:].reshape(-1,256)
+            self.data_q = self.data_q.reshape(16,2, 2000,256)[:,:,-400:].reshape(-1,256)
+            self.labels = self.labels.reshape(16,2, 2000)[:,:,-400:].reshape(-1)
+        else:
+            self.data_i = self.data_i.reshape(16,2, 2000,256)[:,:,:-400].reshape(-1,256)
+            self.data_q = self.data_q.reshape(16,2, 2000,256)[:,:,:-400].reshape(-1,256)
+            self.labels = self.labels.reshape(16,2, 2000)[:,:,:-400].reshape(-1)
+            
+        self.data_i = self.data_i[[i for i in range(len(self.labels)) if self.devices_map[self.labels[i]] in  devices]]
+        self.data_q = self.data_q[[i for i in range(len(self.labels)) if self.devices_map[self.labels[i]] in  devices]]
+        self.labels = self.labels[[i for i in range(len(self.labels)) if self.devices_map[self.labels[i]] in  devices]]
+    
+        
     def __len__(self):
-        return len(self.data)
+        return len(self.labels)
 
     def __getitem__(self, idx):
-        data, uav = self.data[idx]
+        label = self.labels[idx]
+        if self.modality == 'iq_const':
+            i_samples = self.data_i[idx] / np.abs(self.data_i_saved[self.labels_saved == label]).max()
+            q_samples = self.data_q[idx] / np.abs(self.data_q_saved[self.labels_saved == label]).max()
+
+            i_samples = (i_samples + 1) / 2 * 100
+            q_samples = (q_samples + 1) / 2 * 100
+            
+            i_indices = i_samples.astype(int)
+            q_indices = q_samples.astype(int)
+            i_indices = np.clip(i_indices, 0, 99)
+            q_indices = np.clip(q_indices, 0, 99)
+            sample = np.zeros((1,100,100))
+            for j in range(len(i_samples)):
+                sample[0][i_indices[j], q_indices[j]] += 1
+            #sample = sample / sample.max()
+            sample = sample[:,20:80,20:80].astype(np.float32)
+        else:
+            data_q = self.data_q[idx] /  np.abs(self.data_i_saved[self.labels_saved == label]).max()
+            data_i = self.data_i[idx] /  np.abs(self.data_q_saved[self.labels_saved == label]).max()
+            sample = np.stack([data_i, data_q],axis = 0)
+            sample = sample
         
-        if self.transform_to_2d:
-            wavelet = self.transform_to_2d['wavelet']
-            scales = self.transform_to_2d['scales']
-            resize_to = self.transform_to_2d['resize_to']
-
-            data = data[0] + 1j * data[1]
-            coefs, _ = pywt.cwt(data, np.arange(1, scales + 1), wavelet)
-            data = np.stack([coefs.real, coefs.imag], axis=0)
-            data = transforms.Resize(size=resize_to)(torch.tensor(data, dtype=torch.float32))
-
-        return (data, uav, idx) if self.return_indices else (data, uav)
-
+        return (sample, self.devices_map[label], idx) if self.return_indices else (sample, self.devices_map[label])
 
 class LoRaDataset(Dataset):
     """
@@ -166,22 +160,6 @@ class WiSig_Dataset(Dataset):
     def __len__(self):
         return len(self.data_ordered)
 
-    def fft_from_iq(self, sample):    
-        data_i = sample[0]
-        data_q = sample[1]
-    
-        f, t, spec = signal.stft(data_i + 1j*data_q,
-                         window='boxcar',
-                         nperseg=16,
-                         noverlap=None,
-                         nfft=128,
-                         return_onesided=False,
-                         padded=False,
-                         boundary=None)
-        
-        spec = np.fft.fftshift(spec, axes=0)
-
-        return np.abs(spec)[np.newaxis]
 
     def __getitem__(self, idx):
         sample, tx = self.data_ordered[idx]
@@ -191,18 +169,5 @@ class WiSig_Dataset(Dataset):
         
         sample = sample / np.max(np.abs(sample))
         sample = sample.astype(np.float32)
-
-        if False:
-            sample = sample_.astype(np.float32)
-        
-        if self.transform_to_2d:
-            wavelet = self.transform_to_2d['wavelet']
-            scales = self.transform_to_2d['scales']
-            resize_to = self.transform_to_2d['resize_to']
-
-            sample = sample[0] + 1j * sample[1]
-            coefs, _ = pywt.cwt(sample, np.arange(1, scales + 1), wavelet)
-            sample = np.abs(coefs)[np.newaxis]
-            sample = sample.astype(np.float32)
 
         return (sample, tx, idx) if self.return_indices else (sample, tx)
