@@ -14,13 +14,14 @@ class Simple_CNN_1D(nn.Module):
     def __init__(
         self, 
         layers_output_sizes:list=[16, 32, 64, 128], 
-        input_signal_length:int=1024, 
-        in_channels:int=1,  
-        kernel_size:int=7,
-        padding_size:int=3,
+        input_signal_length:int=256, 
+        in_channels:int=2,  
+        kernel_size:int=3,
+        padding_size:int=0,
         features_size:int=100,
-        maxplool_strides:int = 4,
-        n_classes = 10
+        maxplool_strides:int = 2,
+        n_classes = 10,
+        svd_init = False
     ):
         
         super(Simple_CNN_1D, self).__init__()
@@ -45,12 +46,16 @@ class Simple_CNN_1D(nn.Module):
         self.classif_head = nn.Sequential(
             nn.Linear(features_size, features_size), nn.ReLU(), nn.Linear(features_size, n_classes)
         )
+        self.svd_init = svd_init
+        self.svd_init_layer = nn.Linear(input_signal_length * in_channels, features_size)
+        self.svd_init_layer.weight.requires_grad = False
+        self.svd_init_layer.bias.requires_grad = False
         
     def _compute_conv1d_output_length(
         self,
         input_length:int,
-        padding_size:int=3,
-        kernel_size:int=7,
+        padding_size:int=0,
+        kernel_size:int=3,
         stride:int=1
     ):
         """
@@ -65,8 +70,8 @@ class Simple_CNN_1D(nn.Module):
         self,
         input_length:int,
         padding_size:int=0,
-        kernel_size:int=4,
-        stride:int=4
+        kernel_size:int=2,
+        stride:int=2
     ):
         """
         Compute the output's signal length of the shape (output_channels, output_length)
@@ -82,8 +87,8 @@ class Simple_CNN_1D(nn.Module):
         layers_output_sizes:list=[16, 32, 64, 128], 
         input_signal_length:int=1024, 
         in_channels:int=1,  
-        kernel_size:int=7, 
-        padding_size:int=3,
+        kernel_size:int=3, 
+        padding_size:int=0,
         features_size:int=100,
         maxplool_strides=4)->nn.Sequential:
         """
@@ -149,6 +154,136 @@ class Simple_CNN_1D(nn.Module):
         features = x
         for i in range(len(self.feature_layers)):
             features = self.feature_layers[i](features)
+        size = self.input_signal_length * self.in_channels
+        features = features + self.svd_init_layer(x.reshape(-1,size)) * self.svd_init
+        return features, features
+
+
+
+class Simple_CNN_2D(nn.Module):
+    """
+    Simple 2D CNN. 
+    
+    Adapted from Simple_CNN_1D for image inputs.
+    """
+    
+    def __init__(
+        self, 
+        layers_output_sizes:list=[16, 32, 64, 128], 
+        input_image_size:tuple=(64, 64),  # (H, W)
+        in_channels:int=1,                # RGB images by default
+        kernel_size:int=3,
+        padding_size:int=3,
+        features_size:int=20,
+        maxpool_strides:int=3,
+        n_classes:int=10,
+        svd_init = False
+    ):
+        super(Simple_CNN_2D, self).__init__()
+
+        self.in_channels = in_channels
+        self.kernel_size = kernel_size
+        self.padding_size = padding_size
+        self.input_image_size = input_image_size
+        self.layers_output_sizes = layers_output_sizes
+        self.features_size = features_size
+        self.svd_init = svd_init
+        self.svd_init_layer = nn.Linear(
+            input_image_size[0] * input_image_size[1] * in_channels, features_size)
+        
+        self.svd_init_layer.weight.requires_grad = False
+        self.svd_init_layer.bias.requires_grad = False
+
+        # first small conv block (like in your 1D version)
+        self.conv1 = nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(in_channels)
+        self.bn2 = nn.BatchNorm2d(in_channels)
+        self.bn3 = nn.BatchNorm2d(in_channels)
+        self.relu = nn.ReLU()
+
+        # Feature extraction layers
+        self.feature_layers = self._build_feature_layers(
+            layers_output_sizes=layers_output_sizes, 
+            input_image_size=input_image_size, 
+            in_channels=in_channels,  
+            kernel_size=kernel_size, 
+            padding_size=padding_size,
+            features_size=features_size,
+            maxpool_strides=maxpool_strides
+        )
+
+        # Classifier head
+        self.classif_head = nn.Sequential(
+            nn.Linear(features_size, features_size),
+            nn.ReLU(),
+            nn.Linear(features_size, n_classes)
+        )
+        
+
+    def _compute_conv2d_output_size(self, h:int, w:int, kernel:int, stride:int=1, padding:int=0):
+        """Compute output (H, W) after Conv2d"""
+        h_out = (h + 2*padding - kernel)//stride + 1
+        w_out = (w + 2*padding - kernel)//stride + 1
+        return h_out, w_out
+
+    def _compute_maxpool2d_output_size(self, h:int, w:int, kernel:int, stride:int, padding:int=0):
+        """Compute output (H, W) after MaxPool2d"""
+        h_out = (h + 2*padding - kernel)//stride + 1
+        w_out = (w + 2*padding - kernel)//stride + 1
+        return h_out, w_out
+
+    def _build_feature_layers(
+        self,
+        layers_output_sizes:list=[16, 32, 64, 128], 
+        input_image_size:tuple=(64, 64), 
+        in_channels:int=3,  
+        kernel_size:int=7, 
+        padding_size:int=3,
+        features_size:int=100,
+        maxpool_strides:int=2
+    ):
+        """Build convolutional feature extractor for images"""
+        cur_h, cur_w = input_image_size
+        self.output_layers_size = [(cur_h, cur_w)]
+        
+        layers = []
+        
+        for i, out_channels in enumerate(layers_output_sizes):
+            cur_in_channels = in_channels if i == 0 else layers_output_sizes[i-1]
+            
+            layers.append(
+                nn.Sequential(
+                    nn.Conv2d(cur_in_channels, out_channels, kernel_size=kernel_size, padding=padding_size),
+                    nn.ReLU(),
+                    nn.BatchNorm2d(out_channels),
+                    nn.MaxPool2d(kernel_size=maxpool_strides, stride=maxpool_strides)
+                )
+            )
+            
+            # update spatial dimensions
+            cur_h, cur_w = self._compute_conv2d_output_size(cur_h, cur_w, kernel_size, 1, padding_size)
+            cur_h, cur_w = self._compute_maxpool2d_output_size(cur_h, cur_w, maxpool_strides, maxpool_strides)
+            self.output_layers_size.append((cur_h, cur_w))
+        
+        # Flatten and linear feature reduction
+        output_size = cur_h * cur_w * layers_output_sizes[-1]
+        print(f"Final flattened feature size: {output_size}")
+
+        layers.extend([
+            nn.Flatten(),
+            nn.Linear(output_size, features_size)
+        ])
+        return nn.ModuleList(layers)
+
+    def forward(self, x):
+        features = x
+        for layer in self.feature_layers:
+            features = layer(features)
+        x = x.reshape(x.shape[0],-1)
+        
+        features = features/10 + self.svd_init_layer(x) * self.svd_init
         return features, features
     
 class AE_CNN_1D(nn.Module):
@@ -269,8 +404,8 @@ class AE_CNN_1D(nn.Module):
                 cur_in_channels = layers_output_sizes[i-1]
 
             # memorize current maxpooling's position
-            maxpooling_layers_positions.add(counter + 3)
-            counter += 4
+            maxpooling_layers_positions.add(counter + 4)
+            counter += 5
             
             # conv1d->batchnorm->relu->maxpool
             layers.extend(
@@ -280,6 +415,7 @@ class AE_CNN_1D(nn.Module):
                         out_channels= layers_output_sizes[i], 
                         kernel_size=kernel_size_conv, 
                         padding=padding_size),
+                    nn.Droput(p=0.2),
                     nn.BatchNorm1d(layers_output_sizes[i]),
                     nn.ReLU(),
                     nn.MaxPool1d(kernel_size=kernel_size_maxpool,stride=kernel_size_maxpool,
@@ -331,7 +467,7 @@ class AE_CNN_1D(nn.Module):
 
             # memorize cur maxunpool position
             maxunpooling_layers_positions.add(counter + 1)
-            counter += 4
+            counter += 5
 
             # batchnorm->maxunpool->conv1transpose->relu
             layers.extend(
@@ -343,6 +479,7 @@ class AE_CNN_1D(nn.Module):
                         out_channels=cur_out_channels, 
                         kernel_size=kernel_size_conv, 
                         padding=padding_size),
+                    nn.Droput(p=0.5),
                     nn.ReLU()
                     ]
             )
