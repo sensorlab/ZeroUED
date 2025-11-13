@@ -5,6 +5,9 @@ Mikhail Krasnov, Ljupcho Milosheski, Mihael Mohorčič and Carolina Fortuna
 
 Paper link: [2511.07026](https://arxiv.org/abs/2511.07026)
 
+<img width="826" height="564" alt="image" src="https://github.com/user-attachments/assets/aa1c5794-062b-430f-b611-04e20600f53b" />
+
+
 # Background
 
 In this paper, we investigate different approaches to the unknown radio-emitter detection task and propose our own approach. 
