@@ -5,7 +5,9 @@ Mikhail Krasnov, Ljupcho Milosheski, Mihael Mohorčič and Carolina Fortuna
 
 Paper link: [2511.07026](https://arxiv.org/abs/2511.07026)
 
-<img width="826" height="564" alt="image" src="https://github.com/user-attachments/assets/aa1c5794-062b-430f-b611-04e20600f53b" />
+<img width="413" height="282" alt="image" src="https://github.com/user-attachments/assets/aa1c5794-062b-430f-b611-04e20600f53b" />
+<img width="354" height="216" alt="image" src="https://github.com/user-attachments/assets/ad8c7fce-5482-43fa-8439-d7d5bf1e755e" />
+
 
 
 # Background
