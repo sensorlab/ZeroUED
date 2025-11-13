@@ -27,11 +27,15 @@ We have chosen two datasets for evaluation:
 2. ```mamba activate SignalSage```
 3. Create an account at https://wandb.ai
 4. Login with your token (can be found in https://wandb.ai/quickstart?product=models) ```wandb login```
-5. Download the data
+5. Download the data (if does not work for ORACLE - download it manualy from [here](https://repository.library.northeastern.edu/files/neu:m044q520q))
    ```
    python download_data.py
    ```
-6. Run experiemnts from config ```python run_experiments configs/ae_config.yaml ```
+6. Create ORACLE Dataset
+   ```
+   python create_oracle_dataset.py 62ft/ data_256_62ft.h5
+   ```
+8. Run experiemnts from config ```python run_experiments configs/ae_config.yaml ```
 
 ### Alternative way for steps 1-2:
 ```pip install -r reqs.txt```
