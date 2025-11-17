@@ -34,7 +34,7 @@ test_loader:
 
 # specifications for metrics computing
 evaluation:
-  clusters_numbers: !!python/tuple [80,100] # for which numbers of clusters calculate metrics
+  clusters_numbers: !!python/tuple [200] # for which numbers of clusters calculate metrics
 
 # specifications for approach and trainer parameters
 approach:
@@ -55,9 +55,10 @@ approach:
     augmentations:
       dims: 2
       viewmaker_config:
-        in_channels: 1
+        in_channels: 2
         singal_length: 256
-        num_bits: 1
+        prob: 0.5
+        noise_std: 0.05
       
     main_optimizer:
       name: Adam
@@ -74,3 +75,13 @@ feature_extractor:
   config:
     input_size: 3600
     hidden_size: 20
+    svd_init: False
+
+#feature_extractor:
+#  name: Simple_CNN_2D
+#  config:
+#    input_image_size: !!python/tuple [60,60] 
+#    in_channels: 1
+#    features_size; 20
+#    svd_init: False
+

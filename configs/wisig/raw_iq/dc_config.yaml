@@ -6,19 +6,16 @@ report_interval: 5    # report interval
 starting_fold: 0
 # dataset specification
 dataset:
-  name: Oracle # name in [WiSig, LoRa, Drones]
+  name: WiSig
   config:
-    file: data_256_62ft.h5     # file path for WiSig
-    k_fold:             # specification for k_fold
-      total_devices: 16
-      ratio: 5
-    modality: iq_const
-    #selected_receivers: !!python/tuple [0,]
+    file:  ManySig.pkl
+    k_fold: 
+      total_devices: 6
+      ratio: 6
+    selected_receivers: !!python/tuple [0,]
     test_config:
-      #days: !!python/tuple [0,1,2,3]
       type: validation
     train_config:
-      #days: !!python/tuple [0,1,2,3]
       type: train
 
 # train and test loaders
@@ -52,12 +49,16 @@ approach:
 
 # specifications for feature_extractor
 feature_extractor:
-  name: Simple_CNN_2D
+  name: KANS_Encoder
   config:
-    input_image_size: !!python/tuple [60,60]
-    features_size: 20
-    in_channels: 1
-    #maxplool_strides: 3
-    #features_size: 20
+    input_size: 512
+    hidden_size: 20
     n_classes: 20
-    svd_init: False
+
+#feature_extractor:
+#  name: Simple_CNN_1D
+#  config:
+#    input_signal_length: 256  
+#    in_channels: 2
+#    features_size; 20
+#    n_classes: 20

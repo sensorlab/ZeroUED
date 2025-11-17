@@ -7,19 +7,16 @@ starting_fold: 0
 starting_epoch: 0
 # dataset specification
 dataset:
-  name: Oracle # name in [WiSig, LoRa, Drones]
+  name: WiSig
   config:
-    file: data_256_62ft.h5     # file path for WiSig
-    k_fold:             # specification for k_fold
-      total_devices: 16
-      ratio: 5
-    modality: ''
-    #selected_receivers: !!python/tuple [0,]
+    file:  ManySig.pkl
+    k_fold: 
+      total_devices: 6
+      ratio: 6
+    selected_receivers: !!python/tuple [0,]
     test_config:
-      #days: !!python/tuple [0,1,2,3]
       type: validation
     train_config:
-      #days: !!python/tuple [0,1,2,3]
       type: train
       
 # train and test loaders

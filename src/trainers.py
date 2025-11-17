@@ -111,6 +111,22 @@ class SIM_CLR_Trainer(Trainer):
         self.num_epochs = num_epochs
         self.device = device
         self.large_augs = large_augs
+        self.epoch = 0
+
+
+    def svd_init(self,  model, train_loader: torch.utils.data.DataLoader):
+        inputs = []
+        for input, _ in train_loader:
+            inputs.append(input)
+        inputs = torch.cat(inputs)
+        inputs = inputs.reshape(inputs.shape[0],-1)
+        pca = PCA(20)
+        pca.fit(inputs)
+        pca_components = pca.components_
+        pca_weights_tensor = torch.from_numpy(pca_components)
+        with torch.no_grad():
+            model.svd_init_layer.weight.data.copy_(pca_weights_tensor)
+            model.svd_init_layer.bias.data.zero_()
 
     def similarity(self, first, second, type="cosine"):
         """
@@ -262,6 +278,11 @@ class SIM_CLR_Trainer(Trainer):
             
         running_loss = 0
         c = 0
+
+
+        if self.epoch == 0:
+            self.svd_init(self.models['feature_extractor'], train_loader)
+            self.epoch += 1
 
         train_loader.dataset.return_indices = False
 
@@ -437,6 +458,22 @@ class AE_Trainer(Trainer):
         self.n_clusters = n_clusters
         self.distance_loss = distance_loss
         self.cur_counter = 0
+        self.epoch = 0
+
+    def svd_init(self,  model, train_loader: torch.utils.data.DataLoader):
+        inputs = []
+        for input, _ in train_loader:
+            inputs.append(input)
+        inputs = torch.cat(inputs)
+        inputs = inputs.reshape(inputs.shape[0],-1)
+        pca = PCA(20)
+        pca.fit(inputs)
+        pca_components = pca.components_
+        pca_weights_tensor = torch.from_numpy(pca_components)
+        with torch.no_grad():
+            model.svd_init_layer.weight.data.copy_(pca_weights_tensor)
+            model.svd_init_layer.bias.data.zero_()
+        
 
     def _update_clusters(self, train_loader: torch.utils.data.DataLoader):
         """
@@ -504,6 +541,11 @@ class AE_Trainer(Trainer):
             "'train_loader.dataset' must have a 'return_indices' attribute"
         
         model = self.models["feature_extractor"].to(self.device)
+        
+        if self.epoch == 0:
+            #self.svd_init(model, train_loader)
+            self.epoch += 1
+
         model.train()
 
         optimizer = self.optimizers["main_optimizer"]
@@ -819,6 +861,7 @@ class Deep_Clustering_Trainer(Trainer):
         self.n_clusters = n_clusters
         self.softmax = nn.Softmax()
         self.p_labels = None
+        self.epoch = 0
 
     def get_features(
         self,
@@ -873,9 +916,26 @@ class Deep_Clustering_Trainer(Trainer):
 
         Args:
             train_loader (torch.utils.data.DataLoader): DataLoader.
+
         """
         model = self.models["feature_extractor"].to(self.device)
         model.eval()
+
+        if self.epoch == 1:
+            train_loader.dataset.return_indices = True
+            inputs = []
+            for input, _, ids in train_loader:
+                inputs.append(input)
+            inputs = torch.cat(inputs)
+            inputs = inputs.reshape(inputs.shape[0],-1)
+            
+            pca = PCA(20)
+            pca.fit(inputs)
+            pca_components = pca.components_
+            pca_weights_tensor = torch.from_numpy(pca_components)
+            with torch.no_grad():
+                model.svd_init_layer.weight.data.copy_(pca_weights_tensor)
+                model.svd_init_layer.bias.data.zero_()
 
         train_features, ids = self.get_features(train_loader, return_indices=True)
         
@@ -909,6 +969,7 @@ class Deep_Clustering_Trainer(Trainer):
 
         running_loss = 0
         c = 0
+        self.epoch += 1
 
         model = self.models["feature_extractor"].to(self.device)
         model.train()

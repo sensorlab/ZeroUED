@@ -13,7 +13,7 @@ dataset:
     k_fold:             # specification for k_fold
       total_devices: 16
       ratio: 5
-    modality: ''
+    modality: raw_iq
     #selected_receivers: !!python/tuple [0,]
     test_config:
       #days: !!python/tuple [0,1,2,3]

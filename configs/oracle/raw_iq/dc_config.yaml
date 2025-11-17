@@ -1,9 +1,9 @@
-num_iterations: 5     # iterations for each config
+num_iterations: 1     # iterations for each config
 starting_iteration: 0 # start id of iteration
-exp_id: test        # id of current run
+exp_id: DC_CNN_No_Init_Const        # id of current run
 logs_dir: logs        # dir for logs
-report_interval: 2    # report interval
-
+report_interval: 5    # report interval
+starting_fold: 0
 # dataset specification
 dataset:
   name: Oracle # name in [WiSig, LoRa, Drones]
@@ -12,7 +12,7 @@ dataset:
     k_fold:             # specification for k_fold
       total_devices: 16
       ratio: 5
-    modality: iq_const
+    modality: raw_iq
     #selected_receivers: !!python/tuple [0,]
     test_config:
       #days: !!python/tuple [0,1,2,3]
@@ -23,54 +23,45 @@ dataset:
 
 # train and test loaders
 train_loader:
-  num_workers: 3
+  num_workers: 10
   batch_size: 128
   shuffle: true
 
 test_loader:
-  num_workers: 3
+  num_workers: 10
   batch_size: 128
   shuffle: false
 
 # specifications for metrics computing
 evaluation:
-  clusters_numbers: !!python/tuple [80,100] # for which numbers of clusters calculate metrics
+  clusters_numbers: !!python/tuple [200,] # for which numbers of clusters calculate metrics
 
 # specifications for approach and trainer parameters
 approach:
-  name: Sim_CLR
-  
+  name: Deep Clustering
   config:
-    device: cpu
-    num_epochs: 100
-    large_augs: False
-    augs_type: static
-    clusters_loss: False
-    
+    clusters_update_interval: 20
+    n_clusters: 20
+    device: cuda
+    num_epochs: 40
   trainer:
-    mlp_head:
-        in_features: 20
-        out_features: 20
-
-    augmentations:
-      dims: 2
-      viewmaker_config:
-        in_channels: 1
-        singal_length: 256
-        num_bits: 1
-      
     main_optimizer:
       name: Adam
       config:
-        lr: 0.0001
-    augs_optimizer:
-      name: Adam
-      config:
-        lr: 0.0001
+        lr: 0.001 # ranges are supported
 
 # specifications for feature_extractor
 feature_extractor:
   name: KANS_Encoder
   config:
-    input_size: 3600
+    input_size: 512
     hidden_size: 20
+    n_classes: 20
+
+#feature_extractor:
+#  name: Simple_CNN_1D
+#  config:
+#    input_signal_length: 256  
+#    in_channels: 2
+#    features_size; 20
+#    n_classes: 20
