@@ -31,7 +31,7 @@ test_loader:
 
 # specifications for metrics computing
 evaluation:
-  clusters_numbers: !!python/tuple [200] # for which numbers of clusters calculate metrics
+  clusters_numbers: !!python/tuple [80] # for which numbers of clusters calculate metrics
 
 # specifications for approach and trainer parameters
 approach:

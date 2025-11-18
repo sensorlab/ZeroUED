@@ -31,7 +31,7 @@ test_loader:
   shuffle: false
 
 evaluation:
-  clusters_numbers: !!python/tuple [200] # for which numbers of clusters calculate metrics
+  clusters_numbers: !!python/tuple [80] # for which numbers of clusters calculate metrics
 
 approach:
   name: PCA
