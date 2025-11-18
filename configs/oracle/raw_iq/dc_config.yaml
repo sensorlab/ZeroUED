@@ -1,6 +1,6 @@
 num_iterations: 1     # iterations for each config
 starting_iteration: 0 # start id of iteration
-exp_id: DC_CNN_No_Init_Const        # id of current run
+exp_id: DC_KAN_1D        # id of current run
 logs_dir: logs        # dir for logs
 report_interval: 5    # report interval
 starting_fold: 0

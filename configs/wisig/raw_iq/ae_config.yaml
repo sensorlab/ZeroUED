@@ -1,6 +1,6 @@
 num_iterations: 1     # iterations for each config
 starting_iteration: 0 # start id of iteration
-exp_id: test_          # id of current run
+exp_id: AE_KAN_1D          # id of current run
 logs_dir: logs        # dir for logs
 report_interval: 10   # report interval
 
