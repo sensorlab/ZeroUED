@@ -1,8 +1,8 @@
-num_iterations: 5     # iterations for each config
+num_iterations: 1     # iterations for each config
 starting_iteration: 0 # start id of iteration
 exp_id: CL_KAN_2D_No_SVD        # id of current run
 logs_dir: logs        # dir for logs
-report_interval: 2    # report interval
+report_interval: 5    # report interval
 
 # dataset specification
 dataset:
@@ -41,7 +41,7 @@ approach:
   name: Sim_CLR
   
   config:
-    device: cpu
+    device: cuda
     num_epochs: 100
     large_augs: False
     augs_type: static
