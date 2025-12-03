@@ -60,7 +60,7 @@ class Decoder(nn.Module):
         bottleneck_size,
         hidden_size,
         output_size,
-        grid_size=5,
+        grid_size=10,
         spline_order=3,
         scale_noise=0.1,
         scale_base=1.0,
@@ -91,14 +91,22 @@ class Decoder(nn.Module):
 
 
 class Autoencoder(nn.Module):
-    def __init__(self, input_size, hidden_size, bottleneck_size=20, grid_size=5, num_layers=1):
+    def __init__(self, input_size, hidden_size, bottleneck_size=20, grid_size=10, num_layers=1, svd_init = False):
         super(Autoencoder, self).__init__()
+        
+        self.svd_init = svd_init
+        self.svd_init_layer = nn.Linear(input_size, hidden_size)
+        self.svd_init_layer.weight.requires_grad = False
+        self.svd_init_layer.bias.requires_grad = False
+        
         self.encoder = Encoder(input_size, hidden_size, bottleneck_size, grid_size = grid_size)
         self.decoder = Decoder(bottleneck_size, hidden_size, input_size, grid_size = grid_size)
 
     def forward(self, x):
+        x_init = x.reshape(x.shape[0], -1)
         x = x.reshape(x.shape[0], -1)
         x,_ = self.encoder(x)
+        x = x + self.svd_init_layer(x_init)*self.svd_init
         features = x
         x = self.decoder(x)
         return features, x

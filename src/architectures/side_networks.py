@@ -2,6 +2,7 @@ from src.architectures.viewmakers import Viewmaker, Viewmaker_1D
 import torch.nn as nn
 import torch
 import numpy as np
+from torchvision.transforms import RandomRotation
 
 class Amplifier(nn.Module):
     def __init__(self, in_channels, signal_length, noise_std=0):
@@ -16,7 +17,6 @@ class Amplifier(nn.Module):
         return x
 
 class Bias(nn.Module):
-    
     def __init__(self, in_channels, signal_length, noise_std=0):
         super(Bias, self).__init__()
         self.in_channels = in_channels
@@ -29,7 +29,6 @@ class Bias(nn.Module):
         return x
 
 class Noise(nn.Module):
-    
     def __init__(self, in_channels, signal_length, noise_std=0):
         super(Noise, self).__init__()
         self.in_channels = in_channels
@@ -42,7 +41,6 @@ class Noise(nn.Module):
         return x
 
 class Inverse(nn.Module):
-    
     def __init__(self, in_channels, signal_length, noise_std=0):
         super(Inverse, self).__init__()
         self.in_channels = in_channels
@@ -52,9 +50,39 @@ class Inverse(nn.Module):
         inverse_indices = [x.shape[-1] - 1 - i for i in range(x.shape[-1])]
         return x[..., inverse_indices]
 
-    
+class Rotation(nn.Module):
+
+    def __init__(self, in_channels, signal_length, noise_std=0):
+        super(Rotation, self).__init__()
+        self.in_channels = in_channels
+        self.signal_length = signal_length
+        self.noise_std = noise_std
+
+    def forward(self, x):
+        gamma = torch.randn(1, device = x.device) * self.noise_std
+        new_x = torch.zeros(x.shape, device = x.device)
+        new_x[..., 0, :] = x[..., 0, :] * torch.cos(gamma) - x[..., 1, :] * torch.sin(gamma)
+        new_x[..., 1, :] = x[..., 0, :] * torch.sin(gamma) + x[..., 1, :] * torch.cos(gamma)
+        return new_x
+
+class Mlp(nn.Module):
+    def __init__(self, in_features, out_features, apply_softmax = False):
+        super(Mlp, self).__init__()
+        self.ln1 = nn.Linear(in_features = in_features, out_features = in_features)
+        self.relu = nn.ReLU()
+        self.ln2 = nn.Linear(in_features = in_features, out_features = out_features)
+        self.apply_softmax = apply_softmax
+        self.softmax = nn.Softmax()
+        
+    def forward(self, x):
+
+        out = self.ln2(self.relu(self.ln1(x)))
+        if self.apply_softmax:
+            out = self.softmax(out)
+        return out
+        
 class Augmentation_Masked(nn.Module):
-    def __init__(self, in_channels, singal_length, aug_module, noise_std = 0.01, num_bits = 16, prob = 0.5):
+    def __init__(self, in_channels, singal_length, aug_module, noise_std = 0.01, num_bits = 4, prob = 0.5):
         super(Augmentation_Masked, self).__init__()
 
         assert singal_length % num_bits == 0
@@ -88,21 +116,6 @@ class Augmentation_Masked(nn.Module):
         
         return new_x
 
-class Mlp(nn.Module):
-    def __init__(self, in_features, out_features, apply_softmax = False):
-        super(Mlp, self).__init__()
-        self.ln1 = nn.Linear(in_features = in_features, out_features = in_features)
-        self.relu = nn.ReLU()
-        self.ln2 = nn.Linear(in_features = in_features, out_features = out_features)
-        self.apply_softmax = apply_softmax
-        self.softmax = nn.Softmax()
-        
-    def forward(self, x):
-
-        out = self.ln2(self.relu(self.ln1(x)))
-        if self.apply_softmax:
-            out = self.softmax(out)
-        return out
 
 def get_augmentations(viewmaker_config: dict, type:str ='learnable', dims:int = 1):
     
@@ -113,13 +126,25 @@ def get_augmentations(viewmaker_config: dict, type:str ='learnable', dims:int = 
             return nn.ModuleList([Viewmaker(**viewmaker_config)])
             
     if type == 'static':
-        return nn.ModuleList(
-            [
-                Augmentation_Masked(**viewmaker_config, aug_module = Noise),
-                Augmentation_Masked(**viewmaker_config, aug_module = Bias),
-                Augmentation_Masked(**viewmaker_config, aug_module = Amplifier),
-            ]
-        )
+        if dims == 1:
+            return nn.ModuleList(
+                [
+                    Augmentation_Masked(**viewmaker_config, aug_module = Noise),
+                    Augmentation_Masked(**viewmaker_config, aug_module = Bias),
+                    Augmentation_Masked(**viewmaker_config, aug_module = Amplifier),
+                    Augmentation_Masked(**viewmaker_config, aug_module = Rotation),
+                ]
+            )
+        else:
+            return nn.ModuleList(
+                [
+                    RandomRotation(0),
+                    RandomRotation(degrees = [90,90]),
+                    RandomRotation(degrees = [-90,-90]),
+                    RandomRotation(degrees = [180,180])
+                ]
+            )
+            
         
 
 

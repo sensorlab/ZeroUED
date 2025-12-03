@@ -12,9 +12,9 @@ from sklearn.decomposition import PCA
 from matplotlib import pyplot as plt
 from torchvision import transforms
 
-from src.datasets import DronesDataset, WiSig_Dataset, LoRaDataset
+from src.datasets import OracleDataset, WiSig_Dataset, LoRaDataset
 from src.architectures import side_networks
-from src.architectures.features_extractors.cnn import Simple_CNN_1D, AE_CNN_1D
+from src.architectures.features_extractors.cnn import Simple_CNN_1D, AE_CNN_1D, AE_CNN_2D, Simple_CNN_2D
 from src.architectures.features_extractors.transformers import TS_Transformer
 from src.architectures.features_extractors.cnn_lstm import CNN_LSTM
 from src.architectures.features_extractors.kan import Encoder as KANS_Encoder
@@ -39,7 +39,7 @@ random.seed(42)
 torch.backends.cudnn.enabled=False
 torch.backends.cudnn.deterministic=True
 
-DATASETS = {"WiSig": WiSig_Dataset, "LoRa": LoRaDataset, "Drones": DronesDataset}
+DATASETS = {"WiSig": WiSig_Dataset, "LoRa": LoRaDataset, "Oracle": OracleDataset}
 
 FEATURES_EXCTRACTORS = {
     "Simple_CNN_1D": Simple_CNN_1D,
@@ -48,9 +48,11 @@ FEATURES_EXCTRACTORS = {
     "CNN_Trasnformer": CNN_Transformer,
     "AE_KAN": KANS_AE,
     "AE_CNN_1D": AE_CNN_1D,
+    'AE_CNN_2D': AE_CNN_2D,
     "CNN_LSTM": CNN_LSTM,
     "Vit": Vit_14,
-    'KANS_Encoder': KANS_Encoder
+    'KANS_Encoder': KANS_Encoder,
+    'Simple_CNN_2D': Simple_CNN_2D
 }
 
 def report(metrics, trainer, exp_config, fold, iteration, epoch, train_config, test_config):

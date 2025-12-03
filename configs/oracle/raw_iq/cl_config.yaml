@@ -1,23 +1,24 @@
-num_iterations: 5     # iterations for each config
+num_iterations: 1     # iterations for each config
 starting_iteration: 0 # start id of iteration
-exp_id: test        # id of current run
+exp_id: CL_KAN_1D        # id of current run
 logs_dir: logs        # dir for logs
-report_interval: 2    # report interval
+report_interval: 5    # report interval
 
 # dataset specification
 dataset:
-  name: WiSig # name in [WiSig, LoRa, Drones]
+  name: Oracle # name in [WiSig, LoRa, Drones]
   config:
-    file: ManySig.pkl    # file path for WiSig
+    file: data_256_62ft.h5     # file path for WiSig
     k_fold:             # specification for k_fold
-      total_devices: 6
-      ratio: 6
-    selected_receivers: !!python/tuple [0,]
+      total_devices: 16
+      ratio: 5
+    modality: raw_iq
+    #selected_receivers: !!python/tuple [0,]
     test_config:
-      days: !!python/tuple [0,1,2,3]
+      #days: !!python/tuple [0,1,2,3]
       type: validation
     train_config:
-      days: !!python/tuple [0,1,2,3]
+      #days: !!python/tuple [0,1,2,3]
       type: train
 
 # train and test loaders
@@ -33,7 +34,7 @@ test_loader:
 
 # specifications for metrics computing
 evaluation:
-  clusters_numbers: !!python/tuple [80,100] # for which numbers of clusters calculate metrics
+  clusters_numbers: !!python/tuple [200] # for which numbers of clusters calculate metrics
 
 # specifications for approach and trainer parameters
 approach:
@@ -52,10 +53,12 @@ approach:
         out_features: 20
 
     augmentations:
+      dims: 1
       viewmaker_config:
         in_channels: 2
         singal_length: 256
-        num_bits: 1
+        prob: 0.5
+        noise_std: 0.05
       
     main_optimizer:
       name: Adam
@@ -65,18 +68,18 @@ approach:
       name: Adam
       config:
         lr: 0.0001
-    large_augs_optimizer:
-      name: Adam
-      config:
-        lr: 0.0001
 
 # specifications for feature_extractor
 feature_extractor:
-  name: Simple_CNN_1D
+  name: KANS_Encoder
   config:
-    input_signal_length: 256
-    in_channels: 2
-    features_size: 20 # must be the same as in_features in mlp head
-    maxplool_strides: 3
-    kernel_size: 7
-    features_size: 20
+    input_size: 512
+    hidden_size: 20
+
+#feature_extractor:
+#  name: Simple_CNN_1D
+#  config:
+#    input_signal_length: 256
+#    in_channels: 2
+#    features_size; 20
+
