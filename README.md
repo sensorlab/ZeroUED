@@ -12,7 +12,7 @@ Paper link: [2511.07026](https://arxiv.org/abs/2511.07026)
 
 # Background
 
-In this paper, we investigate different approaches to the unknown radio-emitter detection task and propose our own approach. 
+In this paper, we investigate the design space for unknown emitter detectors over the two data transmitions scenarios: same and different messages. 
 
 Evaluated approaches:
   - [Auto Encoders ](https://ieeexplore.ieee.org/document/10623390)
