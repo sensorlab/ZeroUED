@@ -57,4 +57,4 @@ We have chosen two datasets for evaluation:
 ```download_data.py``` Script to download datasets.
 
 # Acknowledgment
-The authors would like to acknowledge funding from the European Union's Horizon Europe Framework Programme NANCY project under Grant Agreement No. 101096456.
+This work was supported in part by the European Union’s Horizon Europe research and innovation programme under the NANCY project (GA No. 101096456), EnerTEF (GA No. 101172887) and in part by the Slovenian Research and Innovation Agency under the grant P2-0016.
