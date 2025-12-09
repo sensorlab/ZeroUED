@@ -48,13 +48,23 @@ We have chosen two datasets for evaluation:
     - src/datasets.py       Datasets objects.
     - src/metrics.py        Code for metrics computation.
     - src/config_manager.py Handles configs files.  
-    - src/architectures`    Dir with Features extractors, Mlp head and Viewmakers.
+    - src/architectures   Dir with Features extractors, Mlp head and Viewmakers.
 
 ```run_experiments.py``` Code for runing experiments using config.
 
 ```reqs.txt``` and ```env.yaml``` Dependences.
 
 ```download_data.py``` Script to download datasets.
+
+# Citation
+```
+@article{krasnov2025design,
+  title={Design Principles of Zero-Shot Self-Supervised Unknown Emitter Detectors},
+  author={Krasnov, Mikhail and Milosheski, Ljupcho and Mohor{\v{c}}i{\v{c}}, Mihael and Fortuna, Carolina},
+  journal={arXiv preprint arXiv:2511.07026},
+  year={2025}
+}
+```
 
 # Acknowledgment
 This work was supported in part by the European Union’s Horizon Europe research and innovation programme under the NANCY project (GA No. 101096456), EnerTEF (GA No. 101172887) and in part by the Slovenian Research and Innovation Agency under the grant P2-0016.
