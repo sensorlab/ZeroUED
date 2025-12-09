@@ -12,7 +12,7 @@ Paper link: [2511.07026](https://arxiv.org/abs/2511.07026)
 
 # Background
 
-In this paper, we investigate different approaches to the unknown radio-emitter detection task and propose our own approach. 
+In this paper, we investigate the design space for unknown emitter detectors over the two data transmitions scenarios: same and different messages. 
 
 Evaluated approaches:
   - [Auto Encoders ](https://ieeexplore.ieee.org/document/10623390)
@@ -25,22 +25,18 @@ We have chosen two datasets for evaluation:
   - [ORACLE](https://repository.library.northeastern.edu/files/neu:m044q520q)
 
 # Installation
-1. ```mamba env create -f env.yaml```
-2. ```mamba activate SignalSage```
-3. Create an account at https://wandb.ai
-4. Login with your token (can be found in https://wandb.ai/quickstart?product=models) ```wandb login```
-5. Download the data (if does not work for ORACLE - download it manualy from [here](https://repository.library.northeastern.edu/files/neu:m044q520q))
+1. ```pip install -r reqs.txt```
+2. Create an account at https://wandb.ai
+3. Login with your token (can be found in https://wandb.ai/quickstart?product=models) ```wandb login```
+4. Download the data (if does not work for ORACLE - download it manualy from [here](https://repository.library.northeastern.edu/files/neu:m044q520q))
    ```
    python download_data.py
    ```
-6. Create ORACLE Dataset
+5. Create ORACLE Dataset
    ```
    python create_oracle_dataset.py 62ft/ data_256_62ft.h5
    ```
-8. Run experiemnts from config ```python run_experiments configs/ae_config.yaml ```
-
-### Alternative way for steps 1-2:
-```pip install -r reqs.txt```
+6. Run experiemnts from config ```python run_experiments configs/wisig/raw_iq/ae_config.yaml ```
 
 # Repository structure
 
@@ -52,7 +48,7 @@ We have chosen two datasets for evaluation:
     - src/datasets.py       Datasets objects.
     - src/metrics.py        Code for metrics computation.
     - src/config_manager.py Handles configs files.  
-    - src/architectures`    Dir with Features extractors, Mlp head and Viewmakers.
+    - src/architectures   Dir with Features extractors, Mlp head and Viewmakers.
 
 ```run_experiments.py``` Code for runing experiments using config.
 
@@ -60,5 +56,15 @@ We have chosen two datasets for evaluation:
 
 ```download_data.py``` Script to download datasets.
 
+# Citation
+```
+@article{krasnov2025design,
+  title={Design Principles of Zero-Shot Self-Supervised Unknown Emitter Detectors},
+  author={Krasnov, Mikhail and Milosheski, Ljupcho and Mohor{\v{c}}i{\v{c}}, Mihael and Fortuna, Carolina},
+  journal={arXiv preprint arXiv:2511.07026},
+  year={2025}
+}
+```
+
 # Acknowledgment
-The authors would like to acknowledge funding from the European Union's Horizon Europe Framework Programme NANCY project under Grant Agreement No. 101096456.
+This work was supported in part by the European Union’s Horizon Europe research and innovation programme under the NANCY project (GA No. 101096456), EnerTEF (GA No. 101172887) and in part by the Slovenian Research and Innovation Agency under the grant P2-0016.
