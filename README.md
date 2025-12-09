@@ -1,4 +1,4 @@
-# SignalSage
+# ZeroUED
 Design Principles of Zero-Shot Self-Supervised Unknown Emitter Detectors
 
 Mikhail Krasnov, Ljupcho Milosheski, Mihael Mohorčič and Carolina Fortuna
